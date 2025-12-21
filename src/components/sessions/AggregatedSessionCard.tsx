@@ -94,19 +94,19 @@ export function AggregatedSessionCard({
 
       {/* Expanded session list */}
       {isExpanded && sessions.length > 0 && (
-        <>
+        <View>
           <Divider />
           <View style={styles.expandedContent}>
             {sessions.map((session) => (
               <SessionCard
-                key={session.id}
+                key={`session-${session.id}`}
                 session={session}
                 focusArea={focusArea}
                 onDelete={onDeleteSession ? () => onDeleteSession(session) : undefined}
               />
             ))}
           </View>
-        </>
+        </View>
       )}
     </Card>
   );

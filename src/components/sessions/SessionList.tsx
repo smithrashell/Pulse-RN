@@ -47,9 +47,9 @@ export function SessionList({
 
   return (
     <View style={styles.container}>
-      {aggregatedSessions.map((agg) => (
+      {aggregatedSessions.map((agg, idx) => (
         <AggregatedSessionCard
-          key={agg.focusAreaId ?? 'quick'}
+          key={agg.focusAreaId !== null ? `fa-${agg.focusAreaId}` : `quick-${idx}`}
           focusArea={agg.focusArea}
           sessions={agg.sessions}
           totalMinutes={agg.totalMinutes}
