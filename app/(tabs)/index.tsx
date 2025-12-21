@@ -1,6 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { Text, Card, FAB, useTheme, ActivityIndicator, Button } from 'react-native-paper';
+import {
+  Text,
+  Card,
+  FAB,
+  useTheme,
+  ActivityIndicator,
+  Button,
+  IconButton,
+} from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { format, isSameDay } from 'date-fns';
@@ -332,7 +340,7 @@ export default function TodayScreen() {
           <Card
             style={[styles.card, { backgroundColor: theme.colors.tertiaryContainer }]}
             mode="contained"
-            onPress={() => router.push('/daily-log')}
+            onPress={() => router.push('/daily-log?mode=morning')}
           >
             <Card.Content>
               <View style={styles.dailyLogHeader}>
@@ -363,12 +371,60 @@ export default function TodayScreen() {
           </Card>
         )}
 
+        {/* Morning Intention Completed - show entry */}
+        {isViewingToday && dailyLog?.morningIntention && (
+          <Card style={styles.card} mode="elevated">
+            <Card.Content>
+              <View style={styles.dailyLogHeader}>
+                <View style={styles.dailyLogTitle}>
+                  <Ionicons
+                    name="sunny"
+                    size={20}
+                    color={theme.colors.primary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
+                    Morning Intention
+                  </Text>
+                </View>
+                <IconButton
+                  icon="pencil"
+                  size={18}
+                  iconColor={theme.colors.primary}
+                  onPress={() => router.push('/daily-log?mode=morning')}
+                  style={{ margin: 0 }}
+                />
+              </View>
+              <Text
+                variant="bodyMedium"
+                style={{ color: theme.colors.onSurface, marginTop: 8 }}
+                numberOfLines={3}
+              >
+                {dailyLog.morningIntention}
+              </Text>
+              {dailyLog.proofCommitment && (
+                <Text
+                  variant="bodySmall"
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 4,
+                    fontStyle: 'italic',
+                  }}
+                  numberOfLines={2}
+                >
+                  Proof: {dailyLog.proofCommitment}
+                </Text>
+              )}
+            </Card.Content>
+          </Card>
+        )}
+
         {/* Evening Reflection Prompt (6pm-5am, has tracked time, not yet reflected) */}
         {showEveningPrompt && (
           <Card
             style={[styles.card, { backgroundColor: theme.colors.secondaryContainer }]}
             mode="contained"
-            onPress={() => router.push('/daily-log')}
+            onPress={() => router.push('/daily-log?mode=evening')}
           >
             <Card.Content>
               <View style={styles.dailyLogHeader}>
@@ -395,6 +451,60 @@ export default function TodayScreen() {
               >
                 You tracked {formatMinutes(totalMinutesToday)} today. How do you feel?
               </Text>
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* Evening Reflection Completed - show entry */}
+        {isViewingToday && dailyLog?.eveningReflection && (
+          <Card style={styles.card} mode="elevated">
+            <Card.Content>
+              <View style={styles.dailyLogHeader}>
+                <View style={styles.dailyLogTitle}>
+                  <Ionicons
+                    name="moon"
+                    size={20}
+                    color={theme.colors.secondary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text variant="titleSmall" style={{ color: theme.colors.onSurface }}>
+                    Evening Reflection
+                  </Text>
+                </View>
+                <IconButton
+                  icon="pencil"
+                  size={18}
+                  iconColor={theme.colors.secondary}
+                  onPress={() => router.push('/daily-log?mode=evening')}
+                  style={{ margin: 0 }}
+                />
+              </View>
+              <Text
+                variant="bodyMedium"
+                style={{ color: theme.colors.onSurface, marginTop: 8 }}
+                numberOfLines={3}
+              >
+                {dailyLog.eveningReflection}
+              </Text>
+              {dailyLog.feelingRating && (
+                <View style={styles.feelingRow}>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    Feeling:
+                  </Text>
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <Ionicons
+                      key={num}
+                      name={num <= dailyLog.feelingRating! ? 'star' : 'star-outline'}
+                      size={14}
+                      color={
+                        num <= dailyLog.feelingRating!
+                          ? theme.colors.secondary
+                          : theme.colors.outline
+                      }
+                    />
+                  ))}
+                </View>
+              )}
             </Card.Content>
           </Card>
         )}
@@ -494,6 +604,12 @@ const styles = StyleSheet.create({
   dailyLogTitle: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  feelingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
   },
   fab: {
     backgroundColor: undefined,
