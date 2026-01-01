@@ -79,6 +79,25 @@ export const weeklyIntentions = sqliteTable('weekly_intentions', {
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
+export const weeklyReviews = sqliteTable('weekly_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  week: text('week').notNull(), // YYYY-Www format
+  whatWorked: text('what_worked'),
+  whatDidntWork: text('what_didnt_work'),
+  tryNextWeek: text('try_next_week'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export const monthlyReviews = sqliteTable('monthly_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  month: text('month').notNull(), // YYYY-MM format
+  biggestWin: text('biggest_win'),
+  carryForward: text('carry_forward'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
 // ============ RELATIONS ============
 
 export const focusAreasRelations = relations(focusAreas, ({ one, many }) => ({
@@ -126,3 +145,7 @@ export type MonthlyOutcome = typeof monthlyOutcomes.$inferSelect;
 export type NewMonthlyOutcome = typeof monthlyOutcomes.$inferInsert;
 export type WeeklyIntention = typeof weeklyIntentions.$inferSelect;
 export type NewWeeklyIntention = typeof weeklyIntentions.$inferInsert;
+export type WeeklyReview = typeof weeklyReviews.$inferSelect;
+export type NewWeeklyReview = typeof weeklyReviews.$inferInsert;
+export type MonthlyReview = typeof monthlyReviews.$inferSelect;
+export type NewMonthlyReview = typeof monthlyReviews.$inferInsert;

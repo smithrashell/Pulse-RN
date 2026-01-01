@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Text, Card, useTheme, TextInput, Button, TouchableRipple } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { dailyLogQueries } from '../src/db/queries';
+import { NewDailyLog } from '../src/db/schema';
 
 const FEELING_VALUES = ['1', '2', '3', '4', '5'];
 
@@ -16,7 +17,7 @@ export default function DailyLogScreen() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode: Mode = params.mode === 'evening' ? 'evening' : 'morning';
 
-  const [_isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form state
   const [morningIntention, setMorningIntention] = useState('');
@@ -25,11 +26,22 @@ export default function DailyLogScreen() {
   const [feelingRating, setFeelingRating] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Keep track of existing data to preserve fields we're not editing
+  const [_existingLog, setExistingLog] = useState<{
+    morningIntention?: string | null;
+    proofCommitment?: string | null;
+    eveningReflection?: string | null;
+    feelingRating?: number | null;
+  } | null>(null);
+
   const loadLog = useCallback(async () => {
     setIsLoading(true);
     try {
       const today = new Date();
       const existing = await dailyLogQueries.getForDate(today);
+
+      // Store existing data to preserve fields we're not editing
+      setExistingLog(existing || null);
 
       // Populate form
       setMorningIntention(existing?.morningIntention || '');
@@ -54,22 +66,35 @@ export default function DailyLogScreen() {
     mode === 'morning' ? morningIntention.trim().length > 0 : eveningReflection.trim().length > 0;
 
   const handleSave = async () => {
-    if (!hasContent) return;
+    if (!hasContent || isLoading) return;
 
     setIsSaving(true);
     try {
       const today = new Date();
-      await dailyLogQueries.upsert({
-        date: format(today, 'yyyy-MM-dd'),
-        morningIntention: morningIntention.trim() || null,
-        proofCommitment: proofCommitment.trim() || null,
-        eveningReflection: eveningReflection.trim() || null,
-        feelingRating: feelingRating ? parseInt(feelingRating, 10) : null,
-      });
+
+      // Only update the fields relevant to the current mode
+      // Preserve the other fields from existing data
+      if (mode === 'morning') {
+        const payload: Partial<NewDailyLog> & { date: string } = {
+          date: format(today, 'yyyy-MM-dd'),
+          morningIntention: morningIntention.trim() || null,
+          proofCommitment: proofCommitment.trim() || null,
+        };
+        await dailyLogQueries.upsert(payload as NewDailyLog);
+      } else {
+        const payload: Partial<NewDailyLog> & { date: string } = {
+          date: format(today, 'yyyy-MM-dd'),
+          eveningReflection: eveningReflection.trim() || null,
+          feelingRating: feelingRating ? parseInt(feelingRating, 10) : null,
+        };
+        await dailyLogQueries.upsert(payload as NewDailyLog);
+      }
+
       // Navigate back after saving
       router.back();
     } catch (error) {
       console.error('Error saving daily log:', error);
+      Alert.alert('Save Failed', 'Could not save your log. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -77,7 +102,15 @@ export default function DailyLogScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Text variant="headlineSmall" style={styles.pageTitle}>
+          {format(new Date(), 'EEEE, MMM d')}
+        </Text>
+
         {mode === 'morning' ? (
           /* Morning Section */
           <Card style={styles.card} mode="elevated">
@@ -198,17 +231,18 @@ export default function DailyLogScreen() {
           mode="contained"
           onPress={handleSave}
           loading={isSaving}
-          disabled={isSaving || !hasContent}
+          disabled={isSaving || isLoading || !hasContent}
           style={styles.saveButton}
         >
-          Save
+          {isLoading ? 'Loading...' : 'Save'}
         </Button>
 
-        {/* Cancel Button */}
-        <Button mode="text" onPress={() => router.back()} style={styles.cancelButton}>
-          Cancel
-        </Button>
-      </ScrollView>
+          {/* Cancel Button */}
+          <Button mode="text" onPress={() => router.back()} style={styles.cancelButton}>
+            Cancel
+          </Button>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -220,6 +254,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
+  },
+  pageTitle: {
+    marginBottom: 16,
+    textAlign: 'center',
   },
   card: {
     marginBottom: 16,

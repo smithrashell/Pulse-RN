@@ -51,8 +51,9 @@ export default function WeeklyIntentionsScreen() {
       const loadedIntentions = await weeklyIntentionQueries.getForWeek(currentDate);
       setIntentions(loadedIntentions);
 
-      // Load monthly outcomes for linking
-      const outcomes = await monthlyOutcomeQueries.getForMonth(currentDate);
+      // Load monthly outcomes for linking - use the week's start date to get outcomes for that month
+      const weekStartDate = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const outcomes = await monthlyOutcomeQueries.getForMonth(weekStartDate);
       setMonthlyOutcomes(outcomes);
     } catch (error) {
       console.error('Error loading intentions:', error);
@@ -275,74 +276,80 @@ export default function WeeklyIntentionsScreen() {
           onDismiss={() => setDialogVisible(false)}
           contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="titleLarge" style={{ marginBottom: 16 }}>
-            {editingIntention ? 'Edit Intention' : 'New Intention'}
-          </Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalScrollContent}
+          >
+            <Text variant="titleLarge" style={{ marginBottom: 16 }}>
+              {editingIntention ? 'Edit Intention' : 'New Intention'}
+            </Text>
 
-          <TextInput
-            mode="outlined"
-            label="What do you intend to accomplish?"
-            value={title}
-            onChangeText={setTitle}
-            style={styles.input}
-          />
+            <TextInput
+              mode="outlined"
+              label="What do you intend to accomplish?"
+              value={title}
+              onChangeText={setTitle}
+              style={styles.input}
+            />
 
-          <TextInput
-            mode="outlined"
-            label="Notes (optional)"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={2}
-            style={styles.input}
-          />
+            <TextInput
+              mode="outlined"
+              label="Notes (optional)"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={2}
+              style={styles.input}
+            />
 
-          {monthlyOutcomes.length > 0 && (
-            <>
-              <Text variant="labelMedium" style={{ marginTop: 8, marginBottom: 4 }}>
-                Link to Monthly Outcome (optional)
-              </Text>
-              <Menu
-                visible={outcomeMenuVisible}
-                onDismiss={() => setOutcomeMenuVisible(false)}
-                anchor={
-                  <Button
-                    mode="outlined"
-                    onPress={() => setOutcomeMenuVisible(true)}
-                    contentStyle={{ justifyContent: 'flex-start' }}
-                  >
-                    {selectedOutcome ? selectedOutcome.title : 'No outcome linked'}
-                  </Button>
-                }
-              >
-                <Menu.Item
-                  onPress={() => {
-                    setSelectedOutcomeId(null);
-                    setOutcomeMenuVisible(false);
-                  }}
-                  title="No outcome linked"
-                />
-                <Divider />
-                {monthlyOutcomes.map((outcome) => (
+            {monthlyOutcomes.length > 0 && (
+              <>
+                <Text variant="labelMedium" style={{ marginTop: 8, marginBottom: 4 }}>
+                  Link to Monthly Outcome (optional)
+                </Text>
+                <Menu
+                  visible={outcomeMenuVisible}
+                  onDismiss={() => setOutcomeMenuVisible(false)}
+                  anchor={
+                    <Button
+                      mode="outlined"
+                      onPress={() => setOutcomeMenuVisible(true)}
+                      contentStyle={{ justifyContent: 'flex-start' }}
+                    >
+                      {selectedOutcome ? selectedOutcome.title : 'No outcome linked'}
+                    </Button>
+                  }
+                >
                   <Menu.Item
-                    key={outcome.id}
                     onPress={() => {
-                      setSelectedOutcomeId(outcome.id);
+                      setSelectedOutcomeId(null);
                       setOutcomeMenuVisible(false);
                     }}
-                    title={outcome.title}
+                    title="No outcome linked"
                   />
-                ))}
-              </Menu>
-            </>
-          )}
+                  <Divider />
+                  {monthlyOutcomes.map((outcome) => (
+                    <Menu.Item
+                      key={outcome.id}
+                      onPress={() => {
+                        setSelectedOutcomeId(outcome.id);
+                        setOutcomeMenuVisible(false);
+                      }}
+                      title={outcome.title}
+                    />
+                  ))}
+                </Menu>
+              </>
+            )}
 
-          <View style={styles.dialogActions}>
-            <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-            <Button mode="contained" onPress={handleSave} disabled={!title.trim()}>
-              Save
-            </Button>
-          </View>
+            <View style={styles.dialogActions}>
+              <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
+              <Button mode="contained" onPress={handleSave} disabled={!title.trim()}>
+                Save
+              </Button>
+            </View>
+          </ScrollView>
         </Modal>
       </Portal>
     </SafeAreaView>
@@ -410,6 +417,9 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
   },
   input: {
     marginBottom: 12,

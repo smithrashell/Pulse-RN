@@ -7,3 +7,6 @@ export {
   planningUtils,
   default as planning,
 } from './planning';
+export { historyQueries, default as history } from './history';
+export * from './reviews';
+export type { DayActivity, MonthActivityData } from './history';

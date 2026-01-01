@@ -16,6 +16,14 @@ export function WeeklyCheckInCard({
 }: WeeklyCheckInCardProps) {
   const theme = useTheme();
 
+  const handleStartReview = () => {
+    // Navigate to Review first
+    router.push('/review/weekly');
+    // We don't complete the check-in here; we'll let the user complete it after planning
+    // or we can dismiss it manually later.
+    // Actually, following the "Loop" concept: Review -> Plan.
+  };
+
   const handlePlanWeek = () => {
     onComplete();
     router.push('/weekly-intentions');
@@ -33,7 +41,7 @@ export function WeeklyCheckInCard({
             variant="titleMedium"
             style={[styles.title, { color: theme.colors.onPrimaryContainer }]}
           >
-            New Week Starts Today
+            Weekly Review
           </Text>
         </View>
 
@@ -41,7 +49,7 @@ export function WeeklyCheckInCard({
           variant="bodyMedium"
           style={[styles.message, { color: theme.colors.onPrimaryContainer }]}
         >
-          Take a moment to set your intentions for this week.
+          Close the loop on last week to start fresh.
         </Text>
 
         {incompleteIntentionsCount > 0 && (
@@ -49,8 +57,7 @@ export function WeeklyCheckInCard({
             variant="bodySmall"
             style={[styles.subMessage, { color: theme.colors.onPrimaryContainer }]}
           >
-            {incompleteIntentionsCount} intention{incompleteIntentionsCount > 1 ? 's' : ''} from
-            last week still incomplete.
+            {incompleteIntentionsCount} intention{incompleteIntentionsCount > 1 ? 's' : ''} to review.
           </Text>
         )}
 
@@ -65,11 +72,11 @@ export function WeeklyCheckInCard({
           </Button>
           <Button
             mode="contained"
-            onPress={handlePlanWeek}
+            onPress={handleStartReview}
             buttonColor={theme.colors.primary}
             textColor={theme.colors.onPrimary}
           >
-            Plan Week
+            Start Review
           </Button>
         </View>
       </Card.Content>

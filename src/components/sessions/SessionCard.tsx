@@ -16,11 +16,12 @@ export function SessionCard({ session, focusArea, onDelete, onEdit }: SessionCar
   const theme = useTheme();
 
   const startTime = formatTime(session.startTime);
+
   const endTime = session.endTime ? formatTime(session.endTime) : 'In progress';
   const duration = session.durationMinutes ? formatMinutes(session.durationMinutes) : '--';
 
   return (
-    <Card style={styles.card} mode="outlined">
+    <Card style={styles.card} mode="outlined" onPress={onEdit}>
       <Card.Content style={styles.content}>
         <View style={styles.leftSection}>
           {/* Icon and name */}

@@ -16,12 +16,14 @@ interface SessionListProps {
   aggregatedSessions: AggregatedSession[];
   onDeleteSession?: (session: Session) => void;
   onStartSession?: (focusAreaId: number | null) => void;
+  onEditSession?: (session: Session) => void;
 }
 
 export function SessionList({
   aggregatedSessions,
   onDeleteSession,
   onStartSession,
+  onEditSession,
 }: SessionListProps) {
   const theme = useTheme();
 
@@ -55,6 +57,7 @@ export function SessionList({
           totalMinutes={agg.totalMinutes}
           onDeleteSession={onDeleteSession}
           onStartSession={onStartSession ? () => onStartSession(agg.focusAreaId) : undefined}
+          onEditSession={onEditSession}
         />
       ))}
     </View>

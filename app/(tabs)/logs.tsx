@@ -1,12 +1,20 @@
 import { useState, useCallback } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { Text, Card, useTheme, List, Chip, FAB, ActivityIndicator } from 'react-native-paper';
+import {
+  Text,
+  Card,
+  useTheme,
+  List,
+  FAB,
+  ActivityIndicator,
+  TouchableRipple,
+} from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { focusAreaQueries } from '../../src/db/queries';
-import { FocusArea, FocusAreaStatus } from '../../src/db/schema';
+import { FocusArea } from '../../src/db/schema';
 
 export default function LogsScreen() {
   const theme = useTheme();
@@ -47,21 +55,6 @@ export default function LogsScreen() {
     }, [loadData])
   );
 
-  const getStatusColor = (status: FocusAreaStatus) => {
-    switch (status) {
-      case 'ACTIVE':
-        return theme.colors.primaryContainer;
-      case 'PAUSED':
-        return theme.colors.surfaceVariant;
-      case 'COMPLETED':
-        return theme.colors.tertiaryContainer;
-      case 'ABANDONED':
-        return theme.colors.errorContainer;
-      default:
-        return theme.colors.surfaceVariant;
-    }
-  };
-
   // Group focus areas by their parent
   const areas = focusAreas.filter((fa) => fa.type === 'AREA');
   const standalones = focusAreas.filter((fa) => !fa.parentFocusAreaId && fa.type !== 'AREA');
@@ -82,6 +75,89 @@ export default function LogsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <Text
+          variant="headlineMedium"
+          style={{ fontWeight: 'bold', color: theme.colors.onBackground, marginBottom: 16 }}
+        >
+          Review
+        </Text>
+
+        {/* Review Navigation Cards */}
+        <View style={styles.reviewNav}>
+          <Card
+            style={[styles.reviewCard, { backgroundColor: theme.colors.tertiaryContainer }]}
+            onPress={() => router.push('/review/weekly')}
+          >
+            <Card.Content style={styles.reviewCardContent}>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={theme.colors.onTertiaryContainer}
+              />
+              <Text
+                variant="titleSmall"
+                style={{ color: theme.colors.onTertiaryContainer, fontWeight: '600' }}
+              >
+                Weekly
+              </Text>
+              <Text
+                variant="bodySmall"
+                style={{ color: theme.colors.onTertiaryContainer, opacity: 0.8 }}
+              >
+                Reflect & learn
+              </Text>
+            </Card.Content>
+          </Card>
+          <Card
+            style={[styles.reviewCard, { backgroundColor: theme.colors.tertiaryContainer }]}
+            onPress={() => router.push('/review/monthly')}
+          >
+            <Card.Content style={styles.reviewCardContent}>
+              <Ionicons
+                name="analytics-outline"
+                size={20}
+                color={theme.colors.onTertiaryContainer}
+              />
+              <Text
+                variant="titleSmall"
+                style={{ color: theme.colors.onTertiaryContainer, fontWeight: '600' }}
+              >
+                Monthly
+              </Text>
+              <Text
+                variant="bodySmall"
+                style={{ color: theme.colors.onTertiaryContainer, opacity: 0.8 }}
+              >
+                Celebrate wins
+              </Text>
+            </Card.Content>
+          </Card>
+        </View>
+
+        {/* Month View Button */}
+        <TouchableRipple
+          onPress={() => router.push('/month-view')}
+          style={[styles.monthViewButton, { backgroundColor: theme.colors.secondaryContainer }]}
+        >
+          <View style={styles.monthViewContent}>
+            <View style={styles.monthViewLeft}>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={theme.colors.onSecondaryContainer}
+              />
+              <Text
+                variant="bodyMedium"
+                style={{ color: theme.colors.onSecondaryContainer, marginLeft: 8 }}
+              >
+                View Month Calendar
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.onSecondaryContainer} />
+          </View>
+        </TouchableRipple>
+
         {focusAreas.length === 0 ? (
           <Card style={styles.card} mode="elevated">
             <Card.Content style={styles.emptyContent}>
@@ -145,41 +221,33 @@ export default function LogsScreen() {
               const children = getChildrenForArea(area.id);
               return (
                 <View key={area.id}>
-                  <Text
-                    variant="labelMedium"
-                    style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}
-                  >
-                    {area.icon} {area.name.toUpperCase()}
-                  </Text>
-                  {/* Area card */}
-                  <Card
-                    style={[styles.card, { backgroundColor: theme.colors.secondaryContainer }]}
-                    mode="elevated"
+                  {/* Tappable section header - navigates to Area detail */}
+                  <TouchableRipple
                     onPress={() => router.push(`/focus-area/${area.id}`)}
+                    style={styles.areaSectionHeader}
                   >
-                    <Card.Content style={styles.cardContent}>
-                      <Text style={styles.icon}>{area.icon}</Text>
-                      <View style={styles.cardTextContent}>
-                        <Text
-                          variant="bodyLarge"
-                          style={{ fontWeight: '500', color: theme.colors.onSecondaryContainer }}
-                        >
-                          {area.name}
+                    <View style={styles.areaSectionContent}>
+                      <Text
+                        variant="labelMedium"
+                        style={[
+                          styles.sectionLabel,
+                          { color: theme.colors.onSurfaceVariant, marginBottom: 0 },
+                        ]}
+                      >
+                        {area.icon} {area.name.toUpperCase()}
+                      </Text>
+                      <View style={styles.areaSectionRight}>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                          {children.length} items
                         </Text>
-                        <Text
-                          variant="bodySmall"
-                          style={{ color: theme.colors.onSecondaryContainer, opacity: 0.8 }}
-                        >
-                          Area • {children.length} focus areas
-                        </Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={theme.colors.onSurfaceVariant}
+                        />
                       </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={theme.colors.onSecondaryContainer}
-                      />
-                    </Card.Content>
-                  </Card>
+                    </View>
+                  </TouchableRipple>
                   {/* Child focus area cards */}
                   {children.map((child) => (
                     <Card
@@ -198,23 +266,14 @@ export default function LogsScreen() {
                             variant="bodySmall"
                             style={{ color: theme.colors.onSurfaceVariant }}
                           >
-                            {child.type.charAt(0) + child.type.slice(1).toLowerCase()}
+                            {child.type.charAt(0) + child.type.slice(1).toLowerCase()} •{' '}
+                            {child.status.charAt(0) + child.status.slice(1).toLowerCase()}
                           </Text>
                         </View>
-                        <Chip
-                          compact
-                          style={[
-                            styles.statusChip,
-                            { backgroundColor: getStatusColor(child.status) },
-                          ]}
-                        >
-                          {child.status.charAt(0) + child.status.slice(1).toLowerCase()}
-                        </Chip>
                         <Ionicons
                           name="chevron-forward"
                           size={20}
                           color={theme.colors.onSurfaceVariant}
-                          style={{ marginLeft: 8 }}
                         />
                       </Card.Content>
                     </Card>
@@ -303,6 +362,35 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 80,
   },
+  reviewNav: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  reviewCard: {
+    flex: 1,
+  },
+  reviewCardContent: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+  },
+  monthViewButton: {
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  monthViewContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  monthViewLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   card: {
     marginBottom: 12,
   },
@@ -325,7 +413,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.5,
   },
+  areaSectionHeader: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  areaSectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  areaSectionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   listItem: {
+    paddingVertical: 12,
     borderRadius: 8,
   },
   divider: {
@@ -335,9 +441,6 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 24,
-  },
-  statusChip: {
-    height: 24,
   },
   fab: {
     backgroundColor: undefined,

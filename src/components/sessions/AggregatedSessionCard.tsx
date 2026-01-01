@@ -12,6 +12,7 @@ interface AggregatedSessionCardProps {
   totalMinutes: number;
   onDeleteSession?: (session: Session) => void;
   onStartSession?: () => void;
+  onEditSession?: (session: Session) => void;
 }
 
 export function AggregatedSessionCard({
@@ -20,6 +21,7 @@ export function AggregatedSessionCard({
   totalMinutes,
   onDeleteSession,
   onStartSession,
+  onEditSession,
 }: AggregatedSessionCardProps) {
   const theme = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -103,6 +105,7 @@ export function AggregatedSessionCard({
                 session={session}
                 focusArea={focusArea}
                 onDelete={onDeleteSession ? () => onDeleteSession(session) : undefined}
+                onEdit={onEditSession ? () => onEditSession(session) : undefined}
               />
             ))}
           </View>

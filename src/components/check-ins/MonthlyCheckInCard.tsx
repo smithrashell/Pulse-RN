@@ -12,9 +12,8 @@ interface MonthlyCheckInCardProps {
 export function MonthlyCheckInCard({ monthName, onDismiss, onComplete }: MonthlyCheckInCardProps) {
   const theme = useTheme();
 
-  const handleSetOutcomes = () => {
-    onComplete();
-    router.push('/monthly-outcomes');
+  const handleStartReview = () => {
+    router.push('/review/monthly');
   };
 
   return (
@@ -29,7 +28,7 @@ export function MonthlyCheckInCard({ monthName, onDismiss, onComplete }: Monthly
             variant="titleMedium"
             style={[styles.title, { color: theme.colors.onSecondaryContainer }]}
           >
-            Welcome to {monthName}
+            Monthly Review
           </Text>
         </View>
 
@@ -37,7 +36,7 @@ export function MonthlyCheckInCard({ monthName, onDismiss, onComplete }: Monthly
           variant="bodyMedium"
           style={[styles.message, { color: theme.colors.onSecondaryContainer }]}
         >
-          A fresh month is a great time to set new outcomes. What do you want to achieve?
+          Review your outcomes from {monthName} before planning ahead.
         </Text>
 
         <View style={styles.actions}>
@@ -51,11 +50,11 @@ export function MonthlyCheckInCard({ monthName, onDismiss, onComplete }: Monthly
           </Button>
           <Button
             mode="contained"
-            onPress={handleSetOutcomes}
+            onPress={handleStartReview}
             buttonColor={theme.colors.secondary}
             textColor={theme.colors.onSecondary}
           >
-            Set Outcomes
+            Start Review
           </Button>
         </View>
       </Card.Content>

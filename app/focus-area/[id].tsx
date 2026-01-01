@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import {
   Text,
   Card,
@@ -148,7 +148,11 @@ export default function FocusAreaDetailScreen() {
 
   const handleEdit = () => {
     setMenuVisible(false);
-    router.push(`/focus-area/create?edit=${focusAreaId}`);
+    if (focusArea?.type === 'AREA') {
+      router.push(`/focus-area/create-area?edit=${focusAreaId}`);
+    } else {
+      router.push(`/focus-area/create?edit=${focusAreaId}`);
+    }
   };
 
   const handleDeleteSession = async (session: Session) => {
@@ -181,7 +185,7 @@ export default function FocusAreaDetailScreen() {
 
   const statusColor = {
     ACTIVE: theme.colors.primaryContainer,
-    PAUSED: theme.colors.surfaceVariant,
+    ON_HOLD: theme.colors.surfaceVariant,
     COMPLETED: theme.colors.tertiaryContainer,
     ABANDONED: theme.colors.errorContainer,
   }[focusArea.status];
@@ -203,7 +207,7 @@ export default function FocusAreaDetailScreen() {
                     {typeLabel}
                   </Chip>
                   <Chip compact style={[styles.badge, { backgroundColor: statusColor }]}>
-                    {focusArea.status.charAt(0) + focusArea.status.slice(1).toLowerCase()}
+                    {focusArea.status === 'ON_HOLD' ? 'On Hold' : focusArea.status.charAt(0) + focusArea.status.slice(1).toLowerCase()}
                   </Chip>
                 </View>
               </View>
@@ -354,6 +358,7 @@ export default function FocusAreaDetailScreen() {
                     session={session}
                     focusArea={focusArea}
                     onDelete={() => handleDeleteSession(session)}
+                    onEdit={() => router.push(`/session/${session.id}`)}
                   />
                 ))
               )}
@@ -372,7 +377,7 @@ export default function FocusAreaDetailScreen() {
           <Text variant="titleLarge" style={{ marginBottom: 16 }}>
             Change Status
           </Text>
-          {(['ACTIVE', 'PAUSED', 'COMPLETED', 'ABANDONED'] as FocusAreaStatus[]).map((status) => (
+          {(['ACTIVE', 'ON_HOLD', 'COMPLETED', 'ABANDONED'] as FocusAreaStatus[]).map((status) => (
             <Button
               key={status}
               mode={focusArea.status === status ? 'contained' : 'outlined'}
@@ -380,7 +385,7 @@ export default function FocusAreaDetailScreen() {
               style={styles.statusButton}
               disabled={focusArea.status === status}
             >
-              {status.charAt(0) + status.slice(1).toLowerCase()}
+              {status === 'ON_HOLD' ? 'On Hold' : status.charAt(0) + status.slice(1).toLowerCase()}
             </Button>
           ))}
           <Button onPress={() => setStatusModalVisible(false)} style={{ marginTop: 8 }}>
@@ -398,47 +403,58 @@ export default function FocusAreaDetailScreen() {
             setPendingStatus(null);
             setReflection('');
           }}
-          contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+          contentContainerStyle={[styles.reflectionModal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="titleLarge" style={{ marginBottom: 8 }}>
-            {pendingStatus === 'COMPLETED'
-              ? 'Completion Reflection'
-              : 'Why are you abandoning this?'}
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
           >
-            {pendingStatus === 'COMPLETED'
-              ? 'What did you learn? What are you proud of?'
-              : 'This helps you understand patterns and make better decisions.'}
-          </Text>
-          <TextInput
-            mode="outlined"
-            label="Reflection"
-            value={reflection}
-            onChangeText={setReflection}
-            multiline
-            numberOfLines={4}
-            style={{ marginBottom: 16 }}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-            <Button
-              onPress={() => {
-                setReflectionModalVisible(false);
-                setPendingStatus(null);
-                setReflection('');
-              }}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.reflectionModalContent}
             >
-              Cancel
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => pendingStatus && confirmStatusChange(pendingStatus, reflection)}
-            >
-              {pendingStatus === 'COMPLETED' ? 'Complete' : 'Abandon'}
-            </Button>
-          </View>
+              <Text variant="titleLarge" style={{ marginBottom: 8 }}>
+                {pendingStatus === 'COMPLETED'
+                  ? 'Completion Reflection'
+                  : 'Why are you abandoning this?'}
+              </Text>
+              <Text
+                variant="bodyMedium"
+                style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}
+              >
+                {pendingStatus === 'COMPLETED'
+                  ? 'What did you learn? What are you proud of?'
+                  : 'This helps you understand patterns and make better decisions.'}
+              </Text>
+              <TextInput
+                mode="outlined"
+                label="Reflection"
+                value={reflection}
+                onChangeText={setReflection}
+                multiline
+                numberOfLines={4}
+                style={{ marginBottom: 16 }}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+                <Button
+                  onPress={() => {
+                    setReflectionModalVisible(false);
+                    setPendingStatus(null);
+                    setReflection('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={() => pendingStatus && confirmStatusChange(pendingStatus, reflection)}
+                >
+                  {pendingStatus === 'COMPLETED' ? 'Complete' : 'Abandon'}
+                </Button>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
     </SafeAreaView>
@@ -472,6 +488,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   badges: {
+    maxHeight: 40,
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginTop: 8,
@@ -506,6 +523,15 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
+  },
+  reflectionModal: {
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: '80%',
+  },
+  reflectionModalContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   statusButton: {
     marginBottom: 8,

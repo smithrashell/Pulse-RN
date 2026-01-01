@@ -1,13 +1,13 @@
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
+import { View, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import {
   Text,
   Card,
   FAB,
   useTheme,
   ActivityIndicator,
-  Button,
   IconButton,
+  TouchableRipple,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -36,6 +36,19 @@ export default function TodayScreen() {
   const [engagementState, setEngagementState] = useState<EngagementState | null>(null);
   const [checkInState, setCheckInState] = useState<CheckInState | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
+
+  // Double-tap detection for header
+  const lastTapRef = useRef<number>(0);
+  const DOUBLE_TAP_DELAY = 300; // ms
+
+  const handleHeaderPress = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Double tap detected - navigate to month view
+      router.push('/month-view');
+    }
+    lastTapRef.current = now;
+  }, []);
 
   // Timer state
   const {
@@ -72,15 +85,15 @@ export default function TodayScreen() {
     return map;
   }, [weekDays]);
 
-  // Load daily log for today
+  // Load daily log for selected date
   const loadDailyLog = useCallback(async () => {
     try {
-      const log = await dailyLogQueries.getForDate(new Date());
+      const log = await dailyLogQueries.getForDate(selectedDate);
       setDailyLog(log || null);
     } catch (error) {
       console.error('Error loading daily log:', error);
     }
-  }, []);
+  }, [selectedDate]);
 
   // Load engagement and check-in state
   const loadEngagementAndCheckIn = useCallback(async () => {
@@ -104,6 +117,11 @@ export default function TodayScreen() {
       loadEngagementAndCheckIn();
     }, [loadData, loadDailyLog, loadEngagementAndCheckIn])
   );
+
+  // Reload daily log when selected date changes
+  useEffect(() => {
+    loadDailyLog();
+  }, [selectedDate, loadDailyLog]);
 
   // Handler for dismissing weekly check-in
   const handleDismissWeekly = useCallback(async () => {
@@ -188,6 +206,10 @@ export default function TodayScreen() {
     }
   };
 
+  const handleEditSession = (session: Session) => {
+    router.push(`/session/${session.id}`);
+  };
+
   // Calculate session count
   const sessionCount = todaySessions.length;
 
@@ -203,18 +225,20 @@ export default function TodayScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header - fixed at top */}
-      <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-        <Text
-          variant="headlineMedium"
-          style={{ fontWeight: 'bold', color: theme.colors.onBackground }}
-        >
-          {dayName}
-        </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-          {dateString}
-        </Text>
-      </View>
+      {/* Header - fixed at top, double-tap to open month view */}
+      <Pressable onPress={handleHeaderPress}>
+        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
+          <Text
+            variant="headlineMedium"
+            style={{ fontWeight: 'bold', color: theme.colors.onBackground }}
+          >
+            {dayName}
+          </Text>
+          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+            {dateString}
+          </Text>
+        </View>
+      </Pressable>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -229,21 +253,31 @@ export default function TodayScreen() {
 
         {/* "Back to Today" banner when viewing past days */}
         {!isViewingToday && (
-          <Card
-            style={[styles.card, { backgroundColor: theme.colors.secondaryContainer }]}
-            mode="contained"
+          <TouchableRipple
+            onPress={() => selectDate(new Date())}
+            style={[styles.backToTodayBanner, { backgroundColor: theme.colors.secondaryContainer }]}
           >
-            <Card.Content>
-              <View style={styles.backToTodayRow}>
+            <View style={styles.backToTodayRow}>
+              <View>
                 <Text variant="bodyMedium" style={{ color: theme.colors.onSecondaryContainer }}>
                   Viewing {dateString}
                 </Text>
-                <Button mode="contained-tonal" onPress={() => selectDate(new Date())} compact>
-                  Back to Today
-                </Button>
               </View>
-            </Card.Content>
-          </Card>
+              <View style={styles.backToTodayButton}>
+                <Text
+                  variant="labelLarge"
+                  style={{ color: theme.colors.onSecondaryContainer, marginRight: 4 }}
+                >
+                  Back to Today
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={theme.colors.onSecondaryContainer}
+                />
+              </View>
+            </View>
+          </TouchableRipple>
         )}
 
         {/* Check-in prompts (only show when viewing today) */}
@@ -371,8 +405,8 @@ export default function TodayScreen() {
           </Card>
         )}
 
-        {/* Morning Intention Completed - show entry */}
-        {isViewingToday && dailyLog?.morningIntention && (
+        {/* Morning Intention Completed - show entry (for any date) */}
+        {dailyLog?.morningIntention && (
           <Card style={styles.card} mode="elevated">
             <Card.Content>
               <View style={styles.dailyLogHeader}>
@@ -387,13 +421,15 @@ export default function TodayScreen() {
                     Morning Intention
                   </Text>
                 </View>
-                <IconButton
-                  icon="pencil"
-                  size={18}
-                  iconColor={theme.colors.primary}
-                  onPress={() => router.push('/daily-log?mode=morning')}
-                  style={{ margin: 0 }}
-                />
+                {isViewingToday && (
+                  <IconButton
+                    icon="pencil"
+                    size={18}
+                    iconColor={theme.colors.primary}
+                    onPress={() => router.push('/daily-log?mode=morning')}
+                    style={{ margin: 0 }}
+                  />
+                )}
               </View>
               <Text
                 variant="bodyMedium"
@@ -455,8 +491,8 @@ export default function TodayScreen() {
           </Card>
         )}
 
-        {/* Evening Reflection Completed - show entry */}
-        {isViewingToday && dailyLog?.eveningReflection && (
+        {/* Evening Reflection Completed - show entry (for any date) */}
+        {dailyLog?.eveningReflection && (
           <Card style={styles.card} mode="elevated">
             <Card.Content>
               <View style={styles.dailyLogHeader}>
@@ -471,13 +507,15 @@ export default function TodayScreen() {
                     Evening Reflection
                   </Text>
                 </View>
-                <IconButton
-                  icon="pencil"
-                  size={18}
-                  iconColor={theme.colors.secondary}
-                  onPress={() => router.push('/daily-log?mode=evening')}
-                  style={{ margin: 0 }}
-                />
+                {isViewingToday && (
+                  <IconButton
+                    icon="pencil"
+                    size={18}
+                    iconColor={theme.colors.secondary}
+                    onPress={() => router.push('/daily-log?mode=evening')}
+                    style={{ margin: 0 }}
+                  />
+                )}
               </View>
               <Text
                 variant="bodyMedium"
@@ -521,6 +559,7 @@ export default function TodayScreen() {
             aggregatedSessions={sessionListData}
             onDeleteSession={handleDeleteSession}
             onStartSession={isViewingToday && !isRunning ? handleResumeSession : undefined}
+            onEditSession={handleEditSession}
           />
         </View>
       </ScrollView>
@@ -588,9 +627,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  backToTodayBanner: {
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
   backToTodayRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  backToTodayButton: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   sessionsSection: {

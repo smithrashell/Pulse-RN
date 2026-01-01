@@ -89,6 +89,29 @@ export async function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_weekly_intentions_week ON weekly_intentions(week);
     CREATE INDEX IF NOT EXISTS idx_weekly_intentions_monthly ON weekly_intentions(monthly_outcome_id);
+
+    CREATE TABLE IF NOT EXISTS weekly_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      week TEXT NOT NULL,
+      what_worked TEXT,
+      what_didnt_work TEXT,
+      try_next_week TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_weekly_reviews_week ON weekly_reviews(week);
+
+    CREATE TABLE IF NOT EXISTS monthly_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      biggest_win TEXT,
+      carry_forward TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_monthly_reviews_month ON monthly_reviews(month);
   `);
 }
 

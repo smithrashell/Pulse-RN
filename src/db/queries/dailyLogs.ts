@@ -1,4 +1,4 @@
-import { eq, gte, lte, desc } from 'drizzle-orm';
+import { eq, gte, lte, desc, and } from 'drizzle-orm';
 import { db } from '../client';
 import { dailyLogs, DailyLog, NewDailyLog } from '../schema';
 import { format } from 'date-fns';
@@ -27,8 +27,7 @@ export const dailyLogQueries = {
     return db
       .select()
       .from(dailyLogs)
-      .where(gte(dailyLogs.date, startStr))
-      .where(lte(dailyLogs.date, endStr))
+      .where(and(gte(dailyLogs.date, startStr), lte(dailyLogs.date, endStr)))
       .orderBy(desc(dailyLogs.date));
   },
 
@@ -46,7 +45,14 @@ export const dailyLogQueries = {
 
   // Create or update a daily log
   async upsert(data: NewDailyLog): Promise<DailyLog> {
-    const existing = await this.getForDate(new Date(data.date));
+    // Check using the date string directly to avoid timezone issues with new Date()
+    const results = await db
+      .select()
+      .from(dailyLogs)
+      .where(eq(dailyLogs.date, data.date))
+      .limit(1);
+
+    const existing = results[0];
 
     if (existing) {
       const results = await db

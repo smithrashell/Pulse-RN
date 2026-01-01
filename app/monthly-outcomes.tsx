@@ -19,22 +19,34 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { format, addMonths, subMonths } from 'date-fns';
-import { monthlyOutcomeQueries, focusAreaQueries } from '../src/db/queries';
-import { MonthlyOutcome, OutcomeStatus, FocusArea } from '../src/db/schema';
+import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, isSameMonth } from 'date-fns';
+import { monthlyOutcomeQueries, weeklyIntentionQueries, focusAreaQueries } from '../src/db/queries';
+import { MonthlyOutcome, OutcomeStatus, FocusArea, WeeklyIntention } from '../src/db/schema';
 
-const STATUS_OPTIONS: { value: OutcomeStatus; label: string; color: string }[] = [
+// Type for linked intentions per outcome
+type LinkedIntentionsMap = Record<number, WeeklyIntention[]>;
+
+// Progress status options (user-selectable)
+const PROGRESS_STATUS_OPTIONS: { value: OutcomeStatus; label: string; color: string }[] = [
   { value: 'NOT_STARTED', label: 'Not Started', color: 'surfaceVariant' },
   { value: 'IN_PROGRESS', label: 'In Progress', color: 'primaryContainer' },
   { value: 'COMPLETED', label: 'Completed', color: 'tertiaryContainer' },
-  { value: 'CARRIED_OVER', label: 'Carried Over', color: 'secondaryContainer' },
 ];
+
+// All status options for color mapping
+const ALL_STATUS_COLORS: Record<OutcomeStatus, string> = {
+  NOT_STARTED: 'surfaceVariant',
+  IN_PROGRESS: 'primaryContainer',
+  COMPLETED: 'tertiaryContainer',
+  CARRIED_OVER: 'secondaryContainer',
+};
 
 export default function MonthlyOutcomesScreen() {
   const theme = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [outcomes, setOutcomes] = useState<MonthlyOutcome[]>([]);
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
+  const [linkedIntentions, setLinkedIntentions] = useState<LinkedIntentionsMap>({});
   const [_isLoading, setIsLoading] = useState(true);
 
   // Dialog state
@@ -52,6 +64,14 @@ export default function MonthlyOutcomesScreen() {
   const completedCount = outcomes.filter((o) => o.status === 'COMPLETED').length;
   const progress = outcomes.length > 0 ? completedCount / outcomes.length : 0;
 
+  // Calculate time context
+  const today = new Date();
+  const isCurrentMonth = isSameMonth(currentDate, today);
+  // Calculate week of month: ceil(day of month / 7)
+  const currentWeekOfMonth = isCurrentMonth ? Math.ceil(today.getDate() / 7) : null;
+  // Total weeks in month: ceil(days in month / 7)
+  const totalWeeksInMonth = Math.ceil(getDaysInMonth(currentDate) / 7);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -61,6 +81,14 @@ export default function MonthlyOutcomesScreen() {
       // Load focus areas for linking
       const areas = await focusAreaQueries.getAllActive();
       setFocusAreas(areas);
+
+      // Load linked intentions for each outcome
+      const intentionsMap: LinkedIntentionsMap = {};
+      for (const outcome of loadedOutcomes) {
+        const intentions = await weeklyIntentionQueries.getByMonthlyOutcomeId(outcome.id);
+        intentionsMap[outcome.id] = intentions;
+      }
+      setLinkedIntentions(intentionsMap);
     } catch (error) {
       console.error('Error loading outcomes:', error);
     } finally {
@@ -145,9 +173,9 @@ export default function MonthlyOutcomesScreen() {
   const selectedFocusArea = focusAreas.find((fa) => fa.id === selectedFocusAreaId);
 
   const getStatusColor = (outcomeStatus: OutcomeStatus) => {
-    const option = STATUS_OPTIONS.find((s) => s.value === outcomeStatus);
+    const colorKey = ALL_STATUS_COLORS[outcomeStatus];
     const colors = theme.colors as Record<string, string>;
-    return option ? colors[option.color] : theme.colors.surfaceVariant;
+    return colors[colorKey] || theme.colors.surfaceVariant;
   };
 
   return (
@@ -201,10 +229,20 @@ export default function MonthlyOutcomesScreen() {
         ) : (
           outcomes.map((outcome) => {
             const linkedFocusArea = focusAreas.find((fa) => fa.id === outcome.focusAreaId);
+            const cardBackgroundColor = getStatusColor(outcome.status);
+            const outcomeIntentions = linkedIntentions[outcome.id] || [];
+            const completedIntentions = outcomeIntentions.filter((i) => i.isCompleted).length;
+            const pendingIntentions = outcomeIntentions.filter((i) => !i.isCompleted).length;
+            const hasLinkedIntentions = outcomeIntentions.length > 0;
+
             return (
-              <Card key={outcome.id} style={styles.card} mode="elevated">
+              <Card
+                key={outcome.id}
+                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+                mode="elevated"
+              >
                 <TouchableRipple onPress={() => openEditDialog(outcome)}>
-                  <Card.Content>
+                  <Card.Content style={styles.outcomeCardContent}>
                     <View style={styles.outcomeHeader}>
                       <View style={styles.outcomeTitle}>
                         {linkedFocusArea && (
@@ -236,23 +274,78 @@ export default function MonthlyOutcomesScreen() {
                       </Text>
                     )}
 
+                    {/* Linked Intentions Display */}
+                    {hasLinkedIntentions && (
+                      <View style={styles.intentionsSection}>
+                        <View style={styles.intentionRow}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={16}
+                            color={theme.colors.primary}
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text variant="bodySmall" style={{ color: theme.colors.onSurface }}>
+                            {completedIntentions} intention{completedIntentions !== 1 ? 's' : ''} completed
+                          </Text>
+                        </View>
+                        {pendingIntentions > 0 && (
+                          <View style={styles.intentionRow}>
+                            <Ionicons
+                              name="ellipse-outline"
+                              size={16}
+                              color={theme.colors.outline}
+                              style={{ marginRight: 6 }}
+                            />
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                              {pendingIntentions} intention{pendingIntentions !== 1 ? 's' : ''} pending
+                            </Text>
+                          </View>
+                        )}
+                        {isCurrentMonth && currentWeekOfMonth && (
+                          <Text
+                            variant="bodySmall"
+                            style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, fontStyle: 'italic' }}
+                          >
+                            Week {currentWeekOfMonth} of {totalWeeksInMonth} in {format(currentDate, 'MMMM')}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Carried Over Badge */}
+                    {outcome.status === 'CARRIED_OVER' && (
+                      <View style={styles.carriedOverBadge}>
+                        <Ionicons
+                          name="arrow-forward-circle"
+                          size={16}
+                          color={theme.colors.secondary}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text variant="labelSmall" style={{ color: theme.colors.secondary }}>
+                          Carried over from previous month
+                        </Text>
+                      </View>
+                    )}
+
                     <View style={styles.statusRow}>
-                      {STATUS_OPTIONS.map((option) => (
-                        <Chip
-                          key={option.value}
-                          selected={outcome.status === option.value}
-                          onPress={() => handleStatusChange(outcome, option.value)}
-                          style={[
-                            styles.statusChip,
-                            outcome.status === option.value && {
-                              backgroundColor: getStatusColor(option.value),
-                            },
-                          ]}
-                          compact
-                        >
-                          {option.label}
-                        </Chip>
-                      ))}
+                      {PROGRESS_STATUS_OPTIONS.map((option) => {
+                        const isSelected = outcome.status === option.value;
+                        return (
+                          <Chip
+                            key={option.value}
+                            mode={isSelected ? 'flat' : 'outlined'}
+                            onPress={() => handleStatusChange(outcome, option.value)}
+                            style={[
+                              styles.statusChip,
+                              isSelected && { backgroundColor: theme.colors.inverseSurface },
+                            ]}
+                            textStyle={isSelected ? { color: theme.colors.inverseOnSurface } : undefined}
+                            compact
+                          >
+                            {option.label}
+                          </Chip>
+                        );
+                      })}
                     </View>
                   </Card.Content>
                 </TouchableRipple>
@@ -276,99 +369,107 @@ export default function MonthlyOutcomesScreen() {
           onDismiss={() => setDialogVisible(false)}
           contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="titleLarge" style={{ marginBottom: 16 }}>
-            {editingOutcome ? 'Edit Outcome' : 'New Outcome'}
-          </Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalScrollContent}
+          >
+              <Text variant="titleLarge" style={{ marginBottom: 16 }}>
+                {editingOutcome ? 'Edit Outcome' : 'New Outcome'}
+              </Text>
 
-          <TextInput
-            mode="outlined"
-            label="What outcome do you want to achieve?"
-            value={title}
-            onChangeText={setTitle}
-            style={styles.input}
-          />
-
-          <TextInput
-            mode="outlined"
-            label="Notes (optional)"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={2}
-            style={styles.input}
-          />
-
-          {/* Focus Area Selection */}
-          <Text variant="labelMedium" style={{ marginTop: 8, marginBottom: 4 }}>
-            Link to Focus Area (optional)
-          </Text>
-          <Menu
-            visible={focusAreaMenuVisible}
-            onDismiss={() => setFocusAreaMenuVisible(false)}
-            anchor={
-              <Button
+              <TextInput
                 mode="outlined"
-                onPress={() => setFocusAreaMenuVisible(true)}
-                contentStyle={{ justifyContent: 'flex-start' }}
-                icon={
-                  selectedFocusArea
-                    ? () => <Text style={{ fontSize: 16 }}>{selectedFocusArea.icon}</Text>
-                    : undefined
+                label="What outcome do you want to achieve?"
+                value={title}
+                onChangeText={setTitle}
+                style={styles.input}
+              />
+
+              <TextInput
+                mode="outlined"
+                label="Notes (optional)"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={2}
+                style={styles.input}
+              />
+
+              {/* Focus Area Selection */}
+              <Text variant="labelMedium" style={{ marginTop: 8, marginBottom: 4 }}>
+                Link to Focus Area (optional)
+              </Text>
+              <Menu
+                visible={focusAreaMenuVisible}
+                onDismiss={() => setFocusAreaMenuVisible(false)}
+                anchor={
+                  <Button
+                    mode="outlined"
+                    onPress={() => setFocusAreaMenuVisible(true)}
+                    contentStyle={{ justifyContent: 'flex-start' }}
+                    icon={
+                      selectedFocusArea
+                        ? () => <Text style={{ fontSize: 16 }}>{selectedFocusArea.icon}</Text>
+                        : undefined
+                    }
+                  >
+                    {selectedFocusArea ? selectedFocusArea.name : 'No focus area linked'}
+                  </Button>
                 }
               >
-                {selectedFocusArea ? selectedFocusArea.name : 'No focus area linked'}
+                <Menu.Item
+                  onPress={() => {
+                    setSelectedFocusAreaId(null);
+                    setFocusAreaMenuVisible(false);
+                  }}
+                  title="No focus area linked"
+                />
+                <Divider />
+                {focusAreas.map((fa) => (
+                  <Menu.Item
+                    key={fa.id}
+                    onPress={() => {
+                      setSelectedFocusAreaId(fa.id);
+                      setFocusAreaMenuVisible(false);
+                    }}
+                    title={fa.name}
+                    leadingIcon={() => <Text style={{ fontSize: 16 }}>{fa.icon}</Text>}
+                  />
+                ))}
+              </Menu>
+
+              {/* Status Selection */}
+              <Text variant="labelMedium" style={{ marginTop: 16, marginBottom: 8 }}>
+                Status
+              </Text>
+              <View style={styles.statusSelection}>
+                {PROGRESS_STATUS_OPTIONS.map((option) => {
+                  const isSelected = status === option.value;
+                  return (
+                    <Chip
+                      key={option.value}
+                      mode={isSelected ? 'flat' : 'outlined'}
+                      onPress={() => setStatus(option.value)}
+                      style={[
+                        styles.statusChip,
+                        isSelected && { backgroundColor: theme.colors.inverseSurface },
+                      ]}
+                      textStyle={isSelected ? { color: theme.colors.inverseOnSurface } : undefined}
+                    >
+                      {option.label}
+                    </Chip>
+                  );
+                })}
+              </View>
+
+            <View style={styles.dialogActions}>
+              <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
+              <Button mode="contained" onPress={handleSave} disabled={!title.trim()}>
+                Save
               </Button>
-            }
-          >
-            <Menu.Item
-              onPress={() => {
-                setSelectedFocusAreaId(null);
-                setFocusAreaMenuVisible(false);
-              }}
-              title="No focus area linked"
-            />
-            <Divider />
-            {focusAreas.map((fa) => (
-              <Menu.Item
-                key={fa.id}
-                onPress={() => {
-                  setSelectedFocusAreaId(fa.id);
-                  setFocusAreaMenuVisible(false);
-                }}
-                title={fa.name}
-                leadingIcon={() => <Text style={{ fontSize: 16 }}>{fa.icon}</Text>}
-              />
-            ))}
-          </Menu>
-
-          {/* Status Selection */}
-          <Text variant="labelMedium" style={{ marginTop: 16, marginBottom: 8 }}>
-            Status
-          </Text>
-          <View style={styles.statusSelection}>
-            {STATUS_OPTIONS.map((option) => (
-              <Chip
-                key={option.value}
-                selected={status === option.value}
-                onPress={() => setStatus(option.value)}
-                style={[
-                  styles.statusChip,
-                  status === option.value && {
-                    backgroundColor: getStatusColor(option.value),
-                  },
-                ]}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </View>
-
-          <View style={styles.dialogActions}>
-            <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-            <Button mode="contained" onPress={handleSave} disabled={!title.trim()}>
-              Save
-            </Button>
-          </View>
+            </View>
+          </ScrollView>
         </Modal>
       </Portal>
     </SafeAreaView>
@@ -408,10 +509,14 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     gap: 8,
   },
+  outcomeCardContent: {
+    paddingBottom: 16,
+  },
   outcomeHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    paddingTop: 4,
   },
   outcomeTitle: {
     flexDirection: 'row',
@@ -421,11 +526,20 @@ const styles = StyleSheet.create({
   outcomeActions: {
     flexDirection: 'row',
   },
+  intentionsSection: {
+    marginTop: 12,
+  },
+  intentionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   statusRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
+    marginTop: 16,
+    paddingBottom: 4,
   },
   statusChip: {
     marginRight: 0,
@@ -434,6 +548,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  carriedOverBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
   },
   fab: {
     position: 'absolute',
@@ -445,7 +565,9 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
-    maxHeight: '90%',
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
   },
   input: {
     marginBottom: 12,
