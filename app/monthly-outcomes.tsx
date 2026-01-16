@@ -565,9 +565,10 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
+    maxHeight: '80%',
   },
   modalScrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   input: {
     marginBottom: 12,

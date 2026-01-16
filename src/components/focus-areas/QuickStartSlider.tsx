@@ -4,7 +4,7 @@ import { Text, Button, useTheme, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FocusArea } from '../../db/schema';
-import { focusAreaQueries } from '../../db/queries';
+import { focusAreaQueries, sessionQueries } from '../../db/queries';
 
 interface QuickStartSliderProps {
   focusAreas: FocusArea[];
@@ -34,10 +34,24 @@ export function QuickStartSlider({
       setExpandedAreaId(null);
       setAreaChildren([]);
     } else {
-      // Expand and load children
+      // Expand and load children, sorted by recent use
       setExpandedAreaId(areaId);
       const children = await focusAreaQueries.getActiveChildren(areaId);
-      setAreaChildren(children);
+
+      // Sort children by most recent use
+      const recentFocusAreaIds = await sessionQueries.getFocusAreaIdsByRecentUse();
+      const recentOrderMap = new Map(recentFocusAreaIds.map((id, index) => [id, index]));
+
+      const sortedChildren = [...children].sort((a, b) => {
+        const aOrder = recentOrderMap.get(a.id);
+        const bOrder = recentOrderMap.get(b.id);
+        if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+        if (aOrder !== undefined) return -1;
+        if (bOrder !== undefined) return 1;
+        return 0;
+      });
+
+      setAreaChildren(sortedChildren);
     }
   };
 

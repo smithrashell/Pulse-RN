@@ -11,9 +11,11 @@ export function useTimer() {
     activeFocusArea,
     elapsedMs,
     isRunning,
+    liveNote,
     startSession,
     startQuickSession,
     stopSession,
+    updateLiveNote,
     updateElapsed,
     loadActiveSession,
   } = useTimerStore();
@@ -45,10 +47,12 @@ export function useTimer() {
     activeFocusArea,
     elapsedMs,
     isRunning,
+    liveNote,
     formattedTime: formatElapsedTime(elapsedMs),
     startSession,
     startQuickSession,
     stopSession,
+    updateLiveNote,
   };
 }
 

@@ -5,3 +5,4 @@ export {
   useFocusAreaMutations,
   usePotentialParents,
 } from './useFocusAreas';
+export { useNotifications, formatNotificationTime } from './useNotifications';

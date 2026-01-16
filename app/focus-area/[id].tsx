@@ -406,8 +406,9 @@ export default function FocusAreaDetailScreen() {
           contentContainerStyle={[styles.reflectionModal, { backgroundColor: theme.colors.surface }]}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -523,6 +524,7 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
+    maxHeight: '80%',
   },
   reflectionModal: {
     margin: 20,

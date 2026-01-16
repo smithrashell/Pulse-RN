@@ -3,6 +3,7 @@ import { FocusArea, Session, DailyLog } from '../db/schema';
 import { focusAreaQueries, sessionQueries, dailyLogQueries } from '../db/queries';
 import { engagementService, EngagementState } from '../services/engagementService';
 import { checkInService, CheckInState } from '../services/checkInService';
+import { notificationService } from '../services/notificationService';
 import { format, addDays, startOfWeek } from 'date-fns';
 
 export interface AggregatedSession {
@@ -94,7 +95,45 @@ export const useTodayStore = create<TodayState>((set, get) => ({
       const isToday = format(selectedDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
 
       // Load root focus areas (for Quick Start slider)
-      const rootFocusAreas = await focusAreaQueries.getRootActive();
+      const rootFocusAreasUnsorted = await focusAreaQueries.getRootActive();
+
+      // Sort focus areas by most recent use (including child sessions for Areas)
+      const recentFocusAreaIds = await sessionQueries.getFocusAreaIdsByRecentUse();
+      const recentOrderMap = new Map<number, number>();
+
+      // Build order map, also mapping child activity to parent Areas
+      for (let i = 0; i < recentFocusAreaIds.length; i++) {
+        const focusAreaId = recentFocusAreaIds[i];
+
+        // Add the focus area itself
+        if (!recentOrderMap.has(focusAreaId)) {
+          recentOrderMap.set(focusAreaId, i);
+        }
+
+        // Check if this focus area has a parent (is child of an Area)
+        const focusArea = await focusAreaQueries.getById(focusAreaId);
+        if (focusArea?.parentId) {
+          // Add parent Area with the same order (child's recency counts for parent)
+          if (!recentOrderMap.has(focusArea.parentId)) {
+            recentOrderMap.set(focusArea.parentId, i);
+          }
+        }
+      }
+
+      const rootFocusAreas = [...rootFocusAreasUnsorted].sort((a, b) => {
+        const aOrder = recentOrderMap.get(a.id);
+        const bOrder = recentOrderMap.get(b.id);
+
+        // If both have been used, sort by recency
+        if (aOrder !== undefined && bOrder !== undefined) {
+          return aOrder - bOrder;
+        }
+        // If only one has been used, put it first
+        if (aOrder !== undefined) return -1;
+        if (bOrder !== undefined) return 1;
+        // If neither has been used, keep original order
+        return 0;
+      });
 
       // Load sessions for selected date
       const todaySessions = await sessionQueries.getCompletedForDay(selectedDate);
@@ -144,6 +183,14 @@ export const useTodayStore = create<TodayState>((set, get) => ({
       if (isToday) {
         engagementState = await engagementService.getEngagementState();
         checkInState = await checkInService.getCheckInState();
+
+        // Schedule return prompt based on engagement level
+        if (engagementState) {
+          const notificationPrefs = await notificationService.getPreferences();
+          if (notificationPrefs.returnPromptsEnabled && notificationPrefs.permissionStatus === 'granted') {
+            await notificationService.scheduleReturnPrompt(engagementState.level);
+          }
+        }
       }
 
       // Build week days for selector

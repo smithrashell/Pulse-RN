@@ -266,6 +266,23 @@ export const sessionQueries = {
     }
     return null;
   },
+
+  // Get focus area IDs sorted by most recent session
+  async getFocusAreaIdsByRecentUse(): Promise<number[]> {
+    const result = await db
+      .select({
+        focusAreaId: sessions.focusAreaId,
+        lastUsed: sql<number>`MAX(${sessions.startTime})`,
+      })
+      .from(sessions)
+      .where(sql`${sessions.focusAreaId} IS NOT NULL`)
+      .groupBy(sessions.focusAreaId)
+      .orderBy(desc(sql`MAX(${sessions.startTime})`));
+
+    return result
+      .filter((r) => r.focusAreaId !== null)
+      .map((r) => r.focusAreaId as number);
+  },
 };
 
 export default sessionQueries;

@@ -55,9 +55,11 @@ export default function TodayScreen() {
     activeFocusArea,
     formattedTime,
     isRunning,
+    liveNote,
     startSession,
     startQuickSession,
     stopSession,
+    updateLiveNote,
   } = useTimer();
 
   // Today store state
@@ -312,6 +314,8 @@ export default function TodayScreen() {
           <ActiveTimer
             focusArea={activeFocusArea}
             formattedTime={formattedTime}
+            liveNote={liveNote}
+            onNoteChange={updateLiveNote}
             onStop={handleStopSession}
           />
         )}

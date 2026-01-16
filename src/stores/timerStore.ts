@@ -15,10 +15,14 @@ interface TimerState {
   elapsedMs: number;
   isRunning: boolean;
 
+  // Live note (editable while timer runs)
+  liveNote: string;
+
   // Actions
   startSession: (focusArea?: FocusArea) => Promise<void>;
   startQuickSession: () => Promise<void>;
   stopSession: (note?: string, qualityRating?: number) => Promise<Session | null>;
+  updateLiveNote: (note: string) => void;
 
   // Internal
   setActiveSession: (session: Session | null, focusArea?: FocusArea | null) => void;
@@ -31,6 +35,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
   activeFocusArea: null,
   elapsedMs: 0,
   isRunning: false,
+  liveNote: '',
 
   setActiveSession: (session, focusArea = null) => {
     set({
@@ -38,7 +43,12 @@ export const useTimerStore = create<TimerState>((set, get) => ({
       activeFocusArea: focusArea,
       isRunning: session !== null,
       elapsedMs: session ? Date.now() - session.startTime.getTime() : 0,
+      liveNote: session?.note || '',
     });
+  },
+
+  updateLiveNote: (note: string) => {
+    set({ liveNote: note });
   },
 
   updateElapsed: () => {
@@ -99,6 +109,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
       await get().stopSession();
     }
 
+    set({ liveNote: '' });
     const session = await sessionQueries.start(focusArea?.id);
     get().setActiveSession(session, focusArea || null);
   },
@@ -109,21 +120,25 @@ export const useTimerStore = create<TimerState>((set, get) => ({
       await get().stopSession();
     }
 
+    set({ liveNote: '' });
     const session = await sessionQueries.startQuick();
     get().setActiveSession(session, null);
   },
 
   stopSession: async (note, qualityRating) => {
-    const { activeSession } = get();
+    const { activeSession, liveNote } = get();
     if (!activeSession) return null;
 
-    const stoppedSession = await sessionQueries.stop(activeSession.id, note, qualityRating);
+    // Use provided note, or fall back to live note
+    const finalNote = note || liveNote || undefined;
+    const stoppedSession = await sessionQueries.stop(activeSession.id, finalNote, qualityRating);
 
     set({
       activeSession: null,
       activeFocusArea: null,
       isRunning: false,
       elapsedMs: 0,
+      liveNote: '',
     });
 
     return stoppedSession;

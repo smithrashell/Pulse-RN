@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
 import {
   Card,
   Text,
@@ -17,13 +17,15 @@ import { FocusArea } from '../../db/schema';
 interface ActiveTimerProps {
   focusArea: FocusArea | null;
   formattedTime: string;
+  liveNote: string;
+  onNoteChange: (note: string) => void;
   onStop: (note?: string, qualityRating?: number) => void;
 }
 
-export function ActiveTimer({ focusArea, formattedTime, onStop }: ActiveTimerProps) {
+export function ActiveTimer({ focusArea, formattedTime, liveNote, onNoteChange, onStop }: ActiveTimerProps) {
   const theme = useTheme();
   const [showStopDialog, setShowStopDialog] = useState(false);
-  const [note, setNote] = useState('');
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
 
   const handleStop = () => {
@@ -31,9 +33,8 @@ export function ActiveTimer({ focusArea, formattedTime, onStop }: ActiveTimerPro
   };
 
   const handleConfirmStop = () => {
-    onStop(note || undefined, rating || undefined);
+    onStop(liveNote || undefined, rating || undefined);
     setShowStopDialog(false);
-    setNote('');
     setRating(null);
   };
 
@@ -77,6 +78,68 @@ export function ActiveTimer({ focusArea, formattedTime, onStop }: ActiveTimerPro
           {/* Timer display */}
           <TimerDisplay formattedTime={formattedTime} size="large" />
 
+          {/* Live note section */}
+          {showNoteInput ? (
+            <View style={styles.noteSection}>
+              <TextInput
+                mode="outlined"
+                placeholder="What are you working on?"
+                value={liveNote}
+                onChangeText={onNoteChange}
+                multiline
+                numberOfLines={2}
+                style={styles.liveNoteInput}
+                dense
+                outlineColor={theme.colors.outline}
+                activeOutlineColor={theme.colors.primary}
+              />
+              <Button
+                mode="text"
+                compact
+                onPress={() => setShowNoteInput(false)}
+                textColor={theme.colors.onPrimaryContainer}
+                style={styles.doneButton}
+              >
+                Done
+              </Button>
+            </View>
+          ) : liveNote ? (
+            <View style={styles.noteDisplaySection}>
+              <Text
+                variant="bodyMedium"
+                style={[styles.noteText, { color: theme.colors.onPrimaryContainer }]}
+                numberOfLines={2}
+              >
+                {liveNote}
+              </Text>
+              <Button
+                mode="text"
+                compact
+                onPress={() => setShowNoteInput(true)}
+                icon={() => (
+                  <Ionicons name="create-outline" size={14} color={theme.colors.onPrimaryContainer} />
+                )}
+                textColor={theme.colors.onPrimaryContainer}
+                style={styles.editNoteButton}
+              >
+                Edit
+              </Button>
+            </View>
+          ) : (
+            <Button
+              mode="text"
+              compact
+              onPress={() => setShowNoteInput(true)}
+              icon={() => (
+                <Ionicons name="add-circle-outline" size={16} color={theme.colors.onPrimaryContainer} />
+              )}
+              textColor={theme.colors.onPrimaryContainer}
+              style={styles.addNoteButton}
+            >
+              Add note
+            </Button>
+          )}
+
           {/* Stop button */}
           <View style={styles.buttonRow}>
             <Button
@@ -90,7 +153,7 @@ export function ActiveTimer({ focusArea, formattedTime, onStop }: ActiveTimerPro
             </Button>
             <IconButton
               icon={() => (
-                <Ionicons name="create-outline" size={20} color={theme.colors.onPrimaryContainer} />
+                <Ionicons name="star-outline" size={20} color={theme.colors.onPrimaryContainer} />
               )}
               onPress={handleStop}
               style={styles.noteButton}
@@ -106,51 +169,57 @@ export function ActiveTimer({ focusArea, formattedTime, onStop }: ActiveTimerPro
           onDismiss={() => setShowStopDialog(false)}
           contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
         >
-          <Text variant="titleLarge" style={{ color: theme.colors.onSurface, marginBottom: 16 }}>
-            Stop Session
-          </Text>
-
-          {/* Quality rating */}
-          <Text
-            variant="labelMedium"
-            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalScrollContent}
           >
-            How was this session?
-          </Text>
-          <View style={styles.ratingRow}>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <IconButton
-                key={value}
-                icon={() => (
-                  <Ionicons
-                    name={rating && rating >= value ? 'star' : 'star-outline'}
-                    size={28}
-                    color={rating && rating >= value ? theme.colors.primary : theme.colors.outline}
-                  />
-                )}
-                onPress={() => setRating(value)}
-              />
-            ))}
-          </View>
-
-          {/* Note input */}
-          <TextInput
-            mode="outlined"
-            label="Add a note (optional)"
-            value={note}
-            onChangeText={setNote}
-            multiline
-            numberOfLines={3}
-            style={styles.noteInput}
-          />
-
-          {/* Buttons */}
-          <View style={styles.dialogButtons}>
-            <Button onPress={() => setShowStopDialog(false)}>Cancel</Button>
-            <Button mode="contained" onPress={handleConfirmStop}>
+            <Text variant="titleLarge" style={{ color: theme.colors.onSurface, marginBottom: 16 }}>
               Stop Session
-            </Button>
-          </View>
+            </Text>
+
+            {/* Quality rating */}
+            <Text
+              variant="labelMedium"
+              style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}
+            >
+              How was this session?
+            </Text>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <IconButton
+                  key={value}
+                  icon={() => (
+                    <Ionicons
+                      name={rating && rating >= value ? 'star' : 'star-outline'}
+                      size={28}
+                      color={rating && rating >= value ? theme.colors.primary : theme.colors.outline}
+                    />
+                  )}
+                  onPress={() => setRating(value)}
+                />
+              ))}
+            </View>
+
+            {/* Note input */}
+            <TextInput
+              mode="outlined"
+              label="Session notes"
+              value={liveNote}
+              onChangeText={onNoteChange}
+              multiline
+              numberOfLines={3}
+              style={styles.noteInput}
+            />
+
+            {/* Buttons */}
+            <View style={styles.dialogButtons}>
+              <Button onPress={() => setShowStopDialog(false)}>Cancel</Button>
+              <Button mode="contained" onPress={handleConfirmStop}>
+                Stop Session
+              </Button>
+            </View>
+          </ScrollView>
         </Modal>
       </Portal>
     </>
@@ -177,10 +246,37 @@ const styles = StyleSheet.create({
   labelText: {
     marginLeft: 4,
   },
+  noteSection: {
+    width: '100%',
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  liveNoteInput: {
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  doneButton: {
+    marginTop: 4,
+  },
+  noteDisplaySection: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  noteText: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  editNoteButton: {
+    marginTop: 4,
+  },
+  addNoteButton: {
+    marginTop: 8,
+  },
   buttonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 16,
     gap: 8,
   },
   stopButton: {
@@ -193,6 +289,10 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     borderRadius: 12,
+    maxHeight: '80%',
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
   },
   ratingRow: {
     flexDirection: 'row',
