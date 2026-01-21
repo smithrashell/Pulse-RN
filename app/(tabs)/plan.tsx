@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { NorthStarCard } from '../../src/components';
 import {
   format,
   startOfWeek,
@@ -31,6 +32,7 @@ import {
   weeklyIntentionQueries,
   monthlyOutcomeQueries,
 } from '../../src/db/queries';
+import { lifeGoalService, type LifeGoalStats } from '../../src/services';
 import { FocusArea } from '../../src/db/schema';
 import { formatMinutes } from '../../src/utils/time';
 
@@ -62,6 +64,7 @@ export default function PlanScreen() {
   const [_intentionCount, setIntentionCount] = useState({ total: 0, completed: 0 });
   const [_outcomeCount, setOutcomeCount] = useState({ total: 0, completed: 0 });
   const [activeFocusAreaCount, setActiveFocusAreaCount] = useState(0);
+  const [lifeGoalStats, setLifeGoalStats] = useState<LifeGoalStats | null>(null);
 
   // Calculate period dates
   const periodStart =
@@ -88,6 +91,10 @@ export default function PlanScreen() {
       // Get active focus area count
       const activeFAs = await focusAreaQueries.getAllActive();
       setActiveFocusAreaCount(activeFAs.length);
+
+      // Load life goal stats
+      const stats = await lifeGoalService.getStats();
+      setLifeGoalStats(stats);
 
       let loadedData: DayData[] = [];
 
@@ -237,6 +244,11 @@ export default function PlanScreen() {
           </Text>
         </View>
 
+        {/* North Star Card */}
+        {lifeGoalStats && lifeGoalStats.total > 0 && (
+          <NorthStarCard stats={lifeGoalStats} />
+        )}
+
         {/* Planning Section */}
         <Text
           variant="titleMedium"
@@ -244,6 +256,27 @@ export default function PlanScreen() {
         >
           Planning
         </Text>
+
+        {/* Life Vision Card - Full Width */}
+        <Card
+          style={[styles.visionCard, { backgroundColor: theme.colors.tertiaryContainer }]}
+          onPress={() => router.push('/life-vision')}
+          mode="elevated"
+        >
+          <Card.Content style={styles.navCardContent}>
+            <Text
+              variant="titleMedium"
+              style={{ color: theme.colors.onTertiaryContainer, fontWeight: '600' }}
+            >
+              ⭐ Life Vision
+            </Text>
+            <Text variant="bodySmall" style={{ color: theme.colors.onTertiaryContainer }}>
+              100 life goals across all time horizons
+            </Text>
+          </Card.Content>
+        </Card>
+
+        {/* Three Planning Nav Cards */}
         <View style={styles.planningNav}>
           <Card
             style={[styles.navCard, { backgroundColor: theme.colors.tertiaryContainer }]}
@@ -277,7 +310,49 @@ export default function PlanScreen() {
               </Text>
             </Card.Content>
           </Card>
+          <Card
+            style={[styles.navCard, { backgroundColor: theme.colors.tertiaryContainer }]}
+            onPress={() => router.push('/quarterly-goals')}
+          >
+            <Card.Content style={styles.navCardContent}>
+              <Text
+                variant="titleMedium"
+                style={{ color: theme.colors.onTertiaryContainer, fontWeight: '600' }}
+              >
+                Quarterly
+              </Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onTertiaryContainer }}>
+                Set 6 goals
+              </Text>
+            </Card.Content>
+          </Card>
         </View>
+
+        {/* Disciplines - Foundational Systems */}
+        <Card
+          style={[styles.disciplinesCard, { backgroundColor: theme.colors.primaryContainer }]}
+          onPress={() => router.push('/disciplines')}
+          mode="elevated"
+        >
+          <Card.Content style={styles.disciplinesCardContent}>
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="titleMedium"
+                style={{ color: theme.colors.onPrimaryContainer, fontWeight: '600' }}
+              >
+                Disciplines
+              </Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onPrimaryContainer }}>
+                Foundational daily practices that support your goals
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={24}
+              color={theme.colors.onPrimaryContainer}
+            />
+          </Card.Content>
+        </Card>
 
         {/* View Mode Toggle */}
         <View style={styles.viewToggle}>
@@ -540,17 +615,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
+  visionCard: {
+    marginBottom: 16,
+  },
   planningNav: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
   navCard: {
     flex: 1,
+    minWidth: 90,
   },
   navCardContent: {
     alignItems: 'center',
     gap: 4,
+  },
+  disciplinesCard: {
+    marginBottom: 16,
+  },
+  disciplinesCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   viewToggle: {
     flexDirection: 'row',

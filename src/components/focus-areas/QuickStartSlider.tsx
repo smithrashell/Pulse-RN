@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView } from 'react-native';
 import { Text, Button, useTheme, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,10 +23,41 @@ export function QuickStartSlider({
   const [expandedAreaId, setExpandedAreaId] = useState<number | null>(null);
   // Cache children for expanded Area
   const [areaChildren, setAreaChildren] = useState<FocusArea[]>([]);
+  // Track recent focus areas
+  const [recentFocusAreas, setRecentFocusAreas] = useState<FocusArea[]>([]);
 
   // Separate Areas from regular focus areas
   const areas = focusAreas.filter((fa) => fa.type === 'AREA');
   const standalones = focusAreas.filter((fa) => fa.type !== 'AREA');
+
+  // Get the expanded area
+  const expandedArea = areas.find((a) => a.id === expandedAreaId);
+
+  // Load recent focus areas on mount
+  useEffect(() => {
+    loadRecentFocusAreas();
+  }, [focusAreas]);
+
+  const loadRecentFocusAreas = async () => {
+    // Get recent focus area IDs
+    const recentIds = await sessionQueries.getFocusAreaIdsByRecentUse();
+
+    // Filter to only include standalone focus areas (not Areas)
+    const recentStandalones = standalones.filter((fa) => recentIds.includes(fa.id));
+
+    // Sort by recent use, limit to 6-8 most recent
+    const recentOrderMap = new Map(recentIds.map((id, index) => [id, index]));
+    const sorted = [...recentStandalones].sort((a, b) => {
+      const aOrder = recentOrderMap.get(a.id);
+      const bOrder = recentOrderMap.get(b.id);
+      if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+      if (aOrder !== undefined) return -1;
+      if (bOrder !== undefined) return 1;
+      return 0;
+    });
+
+    setRecentFocusAreas(sorted.slice(0, 8));
+  };
 
   const toggleArea = async (areaId: number) => {
     if (expandedAreaId === areaId) {
@@ -54,17 +85,6 @@ export function QuickStartSlider({
       setAreaChildren(sortedChildren);
     }
   };
-
-  const handlePress = (focusArea: FocusArea) => {
-    if (focusArea.type === 'AREA') {
-      toggleArea(focusArea.id);
-    } else {
-      onStartSession(focusArea);
-    }
-  };
-
-  // Get the expanded area name
-  const expandedArea = areas.find((a) => a.id === expandedAreaId);
 
   // Empty state
   if (focusAreas.length === 0) {
@@ -102,109 +122,138 @@ export function QuickStartSlider({
         Start Tracking
       </Text>
 
-      {/* Main row: Quick Timer + standalones + areas */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Quick Timer */}
-        <Button
-          mode="outlined"
-          onPress={onStartQuickSession}
-          style={styles.button}
-          icon={() => <Ionicons name="timer-outline" size={18} color={theme.colors.primary} />}
+      {/* Row 1: Recent Focus Areas */}
+      <View style={styles.section}>
+        <Text
+          variant="labelSmall"
+          style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}
         >
-          Quick Timer
-        </Button>
-
-        {/* Standalone focus areas - tap to start */}
-        {standalones.map((fa) => (
+          Recent Focus Areas
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Quick Timer */}
           <Button
-            key={fa.id}
-            mode="contained-tonal"
-            onPress={() => handlePress(fa)}
+            mode="outlined"
+            onPress={onStartQuickSession}
             style={styles.button}
-            icon={() =>
-              fa.icon ? (
-                <Text style={{ fontSize: 16 }}>{fa.icon}</Text>
-              ) : (
-                <Ionicons name="play" size={16} color={theme.colors.onSecondaryContainer} />
-              )
-            }
+            icon={() => <Ionicons name="timer-outline" size={18} color={theme.colors.primary} />}
           >
-            {fa.name}
+            Quick Timer
           </Button>
-        ))}
 
-        {/* Areas - tap to expand/collapse */}
-        {areas.map((area) => (
-          <Button
-            key={area.id}
-            mode="contained-tonal"
-            onPress={() => handlePress(area)}
-            style={[
-              styles.button,
-              expandedAreaId === area.id && { backgroundColor: theme.colors.primaryContainer },
-            ]}
-            icon={() =>
-              area.icon ? (
-                <Text style={{ fontSize: 16 }}>{area.icon}</Text>
-              ) : (
-                <Ionicons
-                  name={expandedAreaId === area.id ? 'chevron-down' : 'folder-outline'}
-                  size={16}
-                  color={theme.colors.onSecondaryContainer}
-                />
-              )
-            }
-          >
-            {area.name}
-          </Button>
-        ))}
-      </ScrollView>
+          {/* Recent standalone focus areas - tap to start (limited to 6) */}
+          {recentFocusAreas.slice(0, 6).map((fa) => (
+            <Button
+              key={fa.id}
+              mode="contained-tonal"
+              onPress={() => onStartSession(fa)}
+              style={styles.button}
+              icon={() =>
+                fa.icon ? (
+                  <Text style={{ fontSize: 16 }}>{fa.icon}</Text>
+                ) : (
+                  <Ionicons name="play" size={16} color={theme.colors.onSecondaryContainer} />
+                )
+              }
+            >
+              {fa.name}
+            </Button>
+          ))}
+        </ScrollView>
+      </View>
 
-      {/* Expanded area children row */}
-      {expandedAreaId && expandedArea && (
-        <View style={styles.childrenSection}>
+      {/* Row 2: Areas */}
+      {areas.length > 0 && (
+        <View style={styles.section}>
           <Text
             variant="labelSmall"
-            style={[styles.childrenLabel, { color: theme.colors.onSurfaceVariant }]}
+            style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}
           >
-            {expandedArea.name} Focus Areas
+            Areas
           </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Areas - tap to expand/collapse */}
+            {areas.map((area) => (
+              <Button
+                key={area.id}
+                mode="contained-tonal"
+                onPress={() => toggleArea(area.id)}
+                style={[
+                  styles.button,
+                  expandedAreaId === area.id && { backgroundColor: theme.colors.primaryContainer },
+                ]}
+                icon={() =>
+                  area.icon ? (
+                    <Text style={{ fontSize: 16 }}>{area.icon}</Text>
+                  ) : (
+                    <Ionicons
+                      name={expandedAreaId === area.id ? 'chevron-down' : 'folder-outline'}
+                      size={16}
+                      color={
+                        expandedAreaId === area.id
+                          ? theme.colors.onPrimaryContainer
+                          : theme.colors.onSecondaryContainer
+                      }
+                    />
+                  )
+                }
+              >
+                {area.name}
+              </Button>
+            ))}
+          </ScrollView>
 
-          {areaChildren.length === 0 ? (
-            <Text
-              variant="bodySmall"
-              style={{ color: theme.colors.onSurfaceVariant, fontStyle: 'italic' }}
-            >
-              No focus areas in this area yet
-            </Text>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {areaChildren.map((child) => (
-                <Button
-                  key={child.id}
-                  mode="contained-tonal"
-                  onPress={() => onStartSession(child)}
-                  style={[styles.button, { backgroundColor: theme.colors.primaryContainer }]}
-                  icon={() =>
-                    child.icon ? (
-                      <Text style={{ fontSize: 16 }}>{child.icon}</Text>
-                    ) : (
-                      <Ionicons name="play" size={16} color={theme.colors.onPrimaryContainer} />
-                    )
-                  }
+          {/* Expanded area children row (dropdown style) */}
+          {expandedAreaId && expandedArea && (
+            <View style={styles.childrenSection}>
+              <Text
+                variant="labelSmall"
+                style={[styles.childrenLabel, { color: theme.colors.onSurfaceVariant }]}
+              >
+                {expandedArea.name} Focus Areas
+              </Text>
+
+              {areaChildren.length === 0 ? (
+                <Text
+                  variant="bodySmall"
+                  style={{ color: theme.colors.onSurfaceVariant, fontStyle: 'italic' }}
                 >
-                  {child.name}
-                </Button>
-              ))}
-            </ScrollView>
+                  No focus areas in this area yet
+                </Text>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.scrollContent}
+                >
+                  {areaChildren.map((child) => (
+                    <Button
+                      key={child.id}
+                      mode="contained-tonal"
+                      onPress={() => onStartSession(child)}
+                      style={[styles.button, { backgroundColor: theme.colors.primaryContainer }]}
+                      icon={() =>
+                        child.icon ? (
+                          <Text style={{ fontSize: 16 }}>{child.icon}</Text>
+                        ) : (
+                          <Ionicons name="play" size={16} color={theme.colors.onPrimaryContainer} />
+                        )
+                      }
+                    >
+                      {child.name}
+                    </Button>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           )}
         </View>
       )}
@@ -219,6 +268,12 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: 8,
     fontWeight: '600',
+  },
+  section: {
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    marginBottom: 6,
   },
   scrollContent: {
     gap: 8,

@@ -160,6 +160,13 @@ export default function RootLayout() {
                 title: 'Daily Log',
               }}
             />
+            <Stack.Screen
+              name="quarterly-goals"
+              options={{
+                headerShown: true,
+                title: 'Quarterly Goals',
+              }}
+            />
           </Stack>
         </PaperProvider>
       </SafeAreaProvider>

@@ -75,6 +75,15 @@ export const monthlyOutcomeQueries = {
     return results.length;
   },
 
+  // Get outcomes linked to a quarterly goal
+  async getByQuarterlyGoalId(quarterlyGoalId: number): Promise<MonthlyOutcome[]> {
+    return db
+      .select()
+      .from(monthlyOutcomes)
+      .where(eq(monthlyOutcomes.quarterlyGoalId, quarterlyGoalId))
+      .orderBy(desc(monthlyOutcomes.month));
+  },
+
   // ============ CRUD OPERATIONS ============
 
   async create(data: Omit<NewMonthlyOutcome, 'createdAt' | 'updatedAt'>): Promise<MonthlyOutcome> {

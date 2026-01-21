@@ -20,8 +20,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, isSameMonth } from 'date-fns';
-import { monthlyOutcomeQueries, weeklyIntentionQueries, focusAreaQueries } from '../src/db/queries';
-import { MonthlyOutcome, OutcomeStatus, FocusArea, WeeklyIntention } from '../src/db/schema';
+import {
+  monthlyOutcomeQueries,
+  weeklyIntentionQueries,
+  focusAreaQueries,
+  quarterlyGoalQueries,
+} from '../src/db/queries';
+import { MonthlyOutcome, OutcomeStatus, FocusArea, WeeklyIntention, QuarterlyGoal } from '../src/db/schema';
+import { formatQuarter } from '../src/utils/quarter';
 
 // Type for linked intentions per outcome
 type LinkedIntentionsMap = Record<number, WeeklyIntention[]>;
@@ -46,6 +52,7 @@ export default function MonthlyOutcomesScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [outcomes, setOutcomes] = useState<MonthlyOutcome[]>([]);
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
+  const [quarterlyGoals, setQuarterlyGoals] = useState<QuarterlyGoal[]>([]);
   const [linkedIntentions, setLinkedIntentions] = useState<LinkedIntentionsMap>({});
   const [_isLoading, setIsLoading] = useState(true);
 
@@ -55,8 +62,10 @@ export default function MonthlyOutcomesScreen() {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedFocusAreaId, setSelectedFocusAreaId] = useState<number | null>(null);
+  const [selectedQuarterlyGoalId, setSelectedQuarterlyGoalId] = useState<number | null>(null);
   const [status, setStatus] = useState<OutcomeStatus>('NOT_STARTED');
   const [focusAreaMenuVisible, setFocusAreaMenuVisible] = useState(false);
+  const [quarterlyGoalMenuVisible, setQuarterlyGoalMenuVisible] = useState(false);
 
   const monthLabel = format(currentDate, 'MMMM yyyy');
   const monthString = format(currentDate, 'yyyy-MM');
@@ -81,6 +90,11 @@ export default function MonthlyOutcomesScreen() {
       // Load focus areas for linking
       const areas = await focusAreaQueries.getAllActive();
       setFocusAreas(areas);
+
+      // Load quarterly goals for the quarter that contains this month
+      const quarterStr = formatQuarter(currentDate);
+      const goals = await quarterlyGoalQueries.getForQuarter(quarterStr);
+      setQuarterlyGoals(goals);
 
       // Load linked intentions for each outcome
       const intentionsMap: LinkedIntentionsMap = {};
@@ -107,6 +121,7 @@ export default function MonthlyOutcomesScreen() {
     setTitle('');
     setNotes('');
     setSelectedFocusAreaId(null);
+    setSelectedQuarterlyGoalId(null);
     setStatus('NOT_STARTED');
     setDialogVisible(true);
   };
@@ -116,6 +131,7 @@ export default function MonthlyOutcomesScreen() {
     setTitle(outcome.title);
     setNotes(outcome.notes || '');
     setSelectedFocusAreaId(outcome.focusAreaId);
+    setSelectedQuarterlyGoalId(outcome.quarterlyGoalId);
     setStatus(outcome.status);
     setDialogVisible(true);
   };
@@ -129,6 +145,7 @@ export default function MonthlyOutcomesScreen() {
           title: title.trim(),
           notes: notes.trim() || undefined,
           focusAreaId: selectedFocusAreaId,
+          quarterlyGoalId: selectedQuarterlyGoalId,
           status,
         });
       } else {
@@ -137,6 +154,7 @@ export default function MonthlyOutcomesScreen() {
           title: title.trim(),
           notes: notes.trim() || undefined,
           focusAreaId: selectedFocusAreaId,
+          quarterlyGoalId: selectedQuarterlyGoalId,
           status,
         });
       }
@@ -171,6 +189,7 @@ export default function MonthlyOutcomesScreen() {
   };
 
   const selectedFocusArea = focusAreas.find((fa) => fa.id === selectedFocusAreaId);
+  const selectedQuarterlyGoal = quarterlyGoals.find((g) => g.id === selectedQuarterlyGoalId);
 
   const getStatusColor = (outcomeStatus: OutcomeStatus) => {
     const colorKey = ALL_STATUS_COLORS[outcomeStatus];
@@ -229,6 +248,9 @@ export default function MonthlyOutcomesScreen() {
         ) : (
           outcomes.map((outcome) => {
             const linkedFocusArea = focusAreas.find((fa) => fa.id === outcome.focusAreaId);
+            const linkedQuarterlyGoal = quarterlyGoals.find(
+              (g) => g.id === outcome.quarterlyGoalId
+            );
             const cardBackgroundColor = getStatusColor(outcome.status);
             const outcomeIntentions = linkedIntentions[outcome.id] || [];
             const completedIntentions = outcomeIntentions.filter((i) => i.isCompleted).length;
@@ -272,6 +294,25 @@ export default function MonthlyOutcomesScreen() {
                       >
                         {outcome.notes}
                       </Text>
+                    )}
+
+                    {/* Linked Quarterly Goal Badge */}
+                    {linkedQuarterlyGoal && (
+                      <View style={styles.quarterlyGoalBadge}>
+                        <Ionicons
+                          name="trophy-outline"
+                          size={14}
+                          color={theme.colors.primary}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          variant="labelSmall"
+                          style={{ color: theme.colors.primary }}
+                          numberOfLines={1}
+                        >
+                          Q{linkedQuarterlyGoal.position}: {linkedQuarterlyGoal.title}
+                        </Text>
+                      </View>
                     )}
 
                     {/* Linked Intentions Display */}
@@ -439,6 +480,51 @@ export default function MonthlyOutcomesScreen() {
                 ))}
               </Menu>
 
+              {/* Quarterly Goal Selection */}
+              {quarterlyGoals.length > 0 && (
+                <>
+                  <Text variant="labelMedium" style={{ marginTop: 16, marginBottom: 4 }}>
+                    Link to Quarterly Goal (optional)
+                  </Text>
+                  <Menu
+                    visible={quarterlyGoalMenuVisible}
+                    onDismiss={() => setQuarterlyGoalMenuVisible(false)}
+                    anchor={
+                      <Button
+                        mode="outlined"
+                        onPress={() => setQuarterlyGoalMenuVisible(true)}
+                        contentStyle={{ justifyContent: 'flex-start' }}
+                        icon="trophy-outline"
+                      >
+                        {selectedQuarterlyGoal
+                          ? `Q${selectedQuarterlyGoal.position}: ${selectedQuarterlyGoal.title}`
+                          : 'No quarterly goal linked'}
+                      </Button>
+                    }
+                  >
+                    <Menu.Item
+                      onPress={() => {
+                        setSelectedQuarterlyGoalId(null);
+                        setQuarterlyGoalMenuVisible(false);
+                      }}
+                      title="No quarterly goal linked"
+                    />
+                    <Divider />
+                    {quarterlyGoals.map((goal) => (
+                      <Menu.Item
+                        key={goal.id}
+                        onPress={() => {
+                          setSelectedQuarterlyGoalId(goal.id);
+                          setQuarterlyGoalMenuVisible(false);
+                        }}
+                        title={`Q${goal.position}: ${goal.title}`}
+                        leadingIcon="trophy-outline"
+                      />
+                    ))}
+                  </Menu>
+                </>
+              )}
+
               {/* Status Selection */}
               <Text variant="labelMedium" style={{ marginTop: 16, marginBottom: 8 }}>
                 Status
@@ -554,6 +640,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 4,
+  },
+  quarterlyGoalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(103, 80, 164, 0.1)',
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   fab: {
     position: 'absolute',

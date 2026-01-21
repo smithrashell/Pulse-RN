@@ -23,18 +23,27 @@ import {
   AdaptivePromptCard,
   WeeklyCheckInCard,
   MonthlyCheckInCard,
+  TodayDisciplinesCard,
+  QuarterlyFocusCard,
+  PartnerCheckInCard,
 } from '../../src/components';
-import { FocusArea, Session, DailyLog } from '../../src/db/schema';
+import { FocusArea, Session, DailyLog, QuarterlyGoal, Discipline } from '../../src/db/schema';
 import { formatMinutes } from '../../src/utils/time';
-import { dailyLogQueries } from '../../src/db/queries';
+import { dailyLogQueries, quarterlyGoalQueries, disciplineQueries } from '../../src/db/queries';
 import { engagementService, EngagementState } from '../../src/services/engagementService';
 import { checkInService, CheckInState } from '../../src/services/checkInService';
+import { disciplineService, TodayDiscipline, accountabilityService, AccountabilityState } from '../../src/services';
+import { DisciplineRating } from '../../src/db/schema';
 
 export default function TodayScreen() {
   const theme = useTheme();
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [engagementState, setEngagementState] = useState<EngagementState | null>(null);
   const [checkInState, setCheckInState] = useState<CheckInState | null>(null);
+  const [todayDisciplines, setTodayDisciplines] = useState<TodayDiscipline[]>([]);
+  const [quarterlyGoals, setQuarterlyGoals] = useState<QuarterlyGoal[]>([]);
+  const [activeDisciplines, setActiveDisciplines] = useState<Discipline[]>([]);
+  const [accountabilityState, setAccountabilityState] = useState<AccountabilityState | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
 
   // Double-tap detection for header
@@ -111,13 +120,59 @@ export default function TodayScreen() {
     }
   }, []);
 
+  // Load today's disciplines
+  const loadTodayDisciplines = useCallback(async () => {
+    try {
+      const disciplines = await disciplineService.getTodayDisciplines();
+      setTodayDisciplines(disciplines);
+    } catch (error) {
+      console.error('Error loading disciplines:', error);
+    }
+  }, []);
+
+  // Load quarterly goals and active disciplines for QuarterlyFocusCard
+  const loadQuarterlyData = useCallback(async () => {
+    try {
+      const [goals, disciplines] = await Promise.all([
+        quarterlyGoalQueries.getForCurrentQuarter(),
+        disciplineQueries.getActive(),
+      ]);
+      setQuarterlyGoals(goals);
+      setActiveDisciplines(disciplines);
+    } catch (error) {
+      console.error('Error loading quarterly data:', error);
+    }
+  }, []);
+
+  // Load accountability state
+  const loadAccountabilityState = useCallback(async () => {
+    try {
+      const state = await accountabilityService.getState();
+      setAccountabilityState(state);
+    } catch (error) {
+      console.error('Error loading accountability state:', error);
+    }
+  }, []);
+
+  // Handle discipline check-in
+  const handleDisciplineCheckIn = useCallback(
+    async (disciplineId: number, rating: DisciplineRating) => {
+      await disciplineService.checkIn(disciplineId, rating);
+      loadTodayDisciplines();
+    },
+    [loadTodayDisciplines]
+  );
+
   // Load data on mount and when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
       loadDailyLog();
       loadEngagementAndCheckIn();
-    }, [loadData, loadDailyLog, loadEngagementAndCheckIn])
+      loadTodayDisciplines();
+      loadQuarterlyData();
+      loadAccountabilityState();
+    }, [loadData, loadDailyLog, loadEngagementAndCheckIn, loadTodayDisciplines, loadQuarterlyData, loadAccountabilityState])
   );
 
   // Reload daily log when selected date changes
@@ -210,6 +265,22 @@ export default function TodayScreen() {
 
   const handleEditSession = (session: Session) => {
     router.push(`/session/${session.id}`);
+  };
+
+  // Handle sharing goals with accountability partner
+  const handleShareGoals = async () => {
+    try {
+      const shareText = await accountabilityService.generateShareText();
+      const { Share } = await import('react-native');
+      await Share.share({ message: shareText });
+    } catch (error) {
+      console.error('Error sharing goals:', error);
+    }
+  };
+
+  // Handle logging check-in
+  const handleLogCheckIn = () => {
+    router.push('/accountability/check-in');
   };
 
   // Calculate session count
@@ -308,6 +379,32 @@ export default function TodayScreen() {
               streak={engagementState.currentStreak}
             />
           )}
+
+        {/* Quarterly Focus & Disciplines - Side by Side Compact Cards */}
+        {isViewingToday &&
+          (quarterlyGoals.length > 0 || activeDisciplines.length > 0 || todayDisciplines.length > 0) && (
+            <View style={styles.compactCardsRow}>
+              {(quarterlyGoals.length > 0 || activeDisciplines.length > 0) && (
+                <QuarterlyFocusCard goals={quarterlyGoals} disciplines={activeDisciplines} compact />
+              )}
+              {todayDisciplines.length > 0 && (
+                <TodayDisciplinesCard
+                  disciplines={todayDisciplines}
+                  onCheckIn={handleDisciplineCheckIn}
+                  compact
+                />
+              )}
+            </View>
+          )}
+
+        {/* Partner Check-In Card (only show when viewing today and check-in is due/overdue) */}
+        {isViewingToday && accountabilityState && (
+          <PartnerCheckInCard
+            state={accountabilityState}
+            onShareGoals={handleShareGoals}
+            onLogCheckIn={handleLogCheckIn}
+          />
+        )}
 
         {/* Active Timer (only show when running AND viewing today) */}
         {isRunning && isViewingToday && (
@@ -616,6 +713,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   card: {
+    marginBottom: 16,
+  },
+  compactCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 16,
   },
   sectionTitle: {

@@ -133,6 +133,30 @@ export default function LogsScreen() {
               </Text>
             </Card.Content>
           </Card>
+          <Card
+            style={[styles.reviewCard, { backgroundColor: theme.colors.tertiaryContainer }]}
+            onPress={() => router.push('/review/quarterly')}
+          >
+            <Card.Content style={styles.reviewCardContent}>
+              <Ionicons
+                name="trophy-outline"
+                size={20}
+                color={theme.colors.onTertiaryContainer}
+              />
+              <Text
+                variant="titleSmall"
+                style={{ color: theme.colors.onTertiaryContainer, fontWeight: '600' }}
+              >
+                Quarterly
+              </Text>
+              <Text
+                variant="bodySmall"
+                style={{ color: theme.colors.onTertiaryContainer, opacity: 0.8 }}
+              >
+                Big picture
+              </Text>
+            </Card.Content>
+          </Card>
         </View>
 
         {/* Month View Button */}
@@ -364,11 +388,13 @@ const styles = StyleSheet.create({
   },
   reviewNav: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
   reviewCard: {
     flex: 1,
+    minWidth: 90,
   },
   reviewCardContent: {
     alignItems: 'center',

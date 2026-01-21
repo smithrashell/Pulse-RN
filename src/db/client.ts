@@ -112,7 +112,179 @@ export async function initializeDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_monthly_reviews_month ON monthly_reviews(month);
+
+    CREATE TABLE IF NOT EXISTS quarterly_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quarter TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      position INTEGER NOT NULL,
+      focus_area_id INTEGER REFERENCES focus_areas(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      completion_reflection TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_quarterly_goals_quarter ON quarterly_goals(quarter);
+    CREATE INDEX IF NOT EXISTS idx_quarterly_goals_focus_area ON quarterly_goals(focus_area_id);
+
+    CREATE TABLE IF NOT EXISTS quarterly_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quarter TEXT NOT NULL,
+      biggest_win TEXT,
+      biggest_challenge TEXT,
+      lessons_learned TEXT,
+      focus_next_quarter TEXT,
+      goals_completed INTEGER,
+      goals_total INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_quarterly_reviews_quarter ON quarterly_reviews(quarter);
+
+    CREATE TABLE IF NOT EXISTS disciplines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      frequency TEXT NOT NULL,
+      specific_days TEXT,
+      target_time TEXT,
+      flexibility_minutes INTEGER DEFAULT 15,
+      quarter TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      started_at INTEGER NOT NULL,
+      ingrained_at INTEGER,
+      evolved_from_id INTEGER,
+      ingrained_reflection TEXT,
+      retired_reason TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_disciplines_status ON disciplines(status);
+    CREATE INDEX IF NOT EXISTS idx_disciplines_quarter ON disciplines(quarter);
+
+    CREATE TABLE IF NOT EXISTS discipline_checks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      discipline_id INTEGER NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      rating TEXT NOT NULL,
+      actual_time TEXT,
+      note TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_discipline_checks_discipline ON discipline_checks(discipline_id);
+    CREATE INDEX IF NOT EXISTS idx_discipline_checks_date ON discipline_checks(date);
+
+    CREATE TABLE IF NOT EXISTS life_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL,
+      time_window TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      is_stretch_goal INTEGER NOT NULL DEFAULT 0,
+      focus_area_id INTEGER REFERENCES focus_areas(id) ON DELETE SET NULL,
+      achieved_at INTEGER,
+      achievement_reflection TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_life_goals_category ON life_goals(category);
+    CREATE INDEX IF NOT EXISTS idx_life_goals_time_window ON life_goals(time_window);
+    CREATE INDEX IF NOT EXISTS idx_life_goals_status ON life_goals(status);
+    CREATE INDEX IF NOT EXISTS idx_life_goals_focus_area ON life_goals(focus_area_id);
+
+    CREATE TABLE IF NOT EXISTS life_goal_check_ins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month TEXT NOT NULL,
+      goals_achieved_count INTEGER NOT NULL DEFAULT 0,
+      goals_in_motion_count INTEGER NOT NULL DEFAULT 0,
+      new_connections_note TEXT,
+      general_reflection TEXT,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_life_goal_check_ins_month ON life_goal_check_ins(month);
+
+    CREATE TABLE IF NOT EXISTS accountability_partner (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      check_in_day TEXT NOT NULL DEFAULT 'Monday',
+      check_in_time TEXT,
+      contact_method TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS partner_check_ins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      partner_id INTEGER NOT NULL REFERENCES accountability_partner(id) ON DELETE CASCADE,
+      week TEXT NOT NULL,
+      completed_at INTEGER,
+      topics_discussed TEXT,
+      partner_feedback TEXT,
+      commitment_made TEXT,
+      felt_productive_rating INTEGER,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_partner_check_ins_partner ON partner_check_ins(partner_id);
+    CREATE INDEX IF NOT EXISTS idx_partner_check_ins_week ON partner_check_ins(week);
+
+    -- Add quarterly_goal_id to monthly_outcomes if it doesn't exist
+    -- SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we check pragmatically
+    PRAGMA table_info(monthly_outcomes);
   `);
+
+  // Check if quarterly_goal_id column exists
+  const tableInfo = await expoDb.getAllAsync('PRAGMA table_info(monthly_outcomes)') as any[];
+  const hasQuarterlyGoalId = tableInfo.some((col: any) => col.name === 'quarterly_goal_id');
+
+  if (!hasQuarterlyGoalId) {
+    await expoDb.execAsync(`
+      ALTER TABLE monthly_outcomes ADD COLUMN quarterly_goal_id INTEGER REFERENCES quarterly_goals(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_monthly_outcomes_quarterly_goal ON monthly_outcomes(quarterly_goal_id);
+    `);
+  }
+
+  // Check if life_goal_id column exists in focus_areas
+  const focusAreasInfo = await expoDb.getAllAsync('PRAGMA table_info(focus_areas)') as any[];
+  const hasLifeGoalIdInFocusAreas = focusAreasInfo.some((col: any) => col.name === 'life_goal_id');
+
+  if (!hasLifeGoalIdInFocusAreas) {
+    await expoDb.execAsync(`
+      ALTER TABLE focus_areas ADD COLUMN life_goal_id INTEGER REFERENCES life_goals(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_focus_areas_life_goal ON focus_areas(life_goal_id);
+    `);
+  }
+
+  // Check if life_goal_id column exists in quarterly_goals
+  const quarterlyGoalsInfo = await expoDb.getAllAsync('PRAGMA table_info(quarterly_goals)') as any[];
+  const hasLifeGoalIdInQuarterlyGoals = quarterlyGoalsInfo.some((col: any) => col.name === 'life_goal_id');
+
+  if (!hasLifeGoalIdInQuarterlyGoals) {
+    await expoDb.execAsync(`
+      ALTER TABLE quarterly_goals ADD COLUMN life_goal_id INTEGER REFERENCES life_goals(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_quarterly_goals_life_goal ON quarterly_goals(life_goal_id);
+    `);
+  }
+
+  // Add Flinch Test columns to quarterly_goals if they don't exist
+  const hasWasStretched = quarterlyGoalsInfo.some((col: any) => col.name === 'was_stretched');
+  if (!hasWasStretched) {
+    await expoDb.execAsync(`
+      ALTER TABLE quarterly_goals ADD COLUMN was_stretched INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE quarterly_goals ADD COLUMN original_goal TEXT;
+    `);
+  }
 }
 
 export { schema };

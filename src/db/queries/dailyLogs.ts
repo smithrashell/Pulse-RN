@@ -7,6 +7,11 @@ import { format } from 'date-fns';
 const formatDate = (date: Date): string => format(date, 'yyyy-MM-dd');
 
 export const dailyLogQueries = {
+  // Get all logs
+  async getAll(): Promise<DailyLog[]> {
+    return db.select().from(dailyLogs).orderBy(desc(dailyLogs.date));
+  },
+
   // Get log for a specific date
   async getForDate(date: Date): Promise<DailyLog | undefined> {
     const dateStr = formatDate(date);

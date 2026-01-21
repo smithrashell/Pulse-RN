@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Alert, Share, View, Platform } from 'react-native';
+import { ScrollView, StyleSheet, Alert, Share, View, Platform, TextInput } from 'react-native';
 import {
   Text,
   Card,
@@ -13,10 +13,21 @@ import {
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { focusAreaQueries, sessionQueries } from '../../src/db/queries';
+import {
+  focusAreaQueries,
+  sessionQueries,
+  accountabilityPartnerQueries,
+  lifeGoalQueries,
+  quarterlyGoalQueries,
+  monthlyOutcomeQueries,
+  weeklyIntentionQueries,
+  dailyLogQueries,
+  disciplineQueries,
+} from '../../src/db/queries';
+import { AccountabilityPartner } from '../../src/db/schema';
 import { useNotifications, formatNotificationTime } from '../../src/hooks/useNotifications';
 import { TimeConfig } from '../../src/services/notificationService';
 import Constants from 'expo-constants';
@@ -43,6 +54,10 @@ export default function SettingsScreen() {
 
   const [stats, setStats] = useState({ focusAreas: 0, sessions: 0, totalMinutes: 0 });
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [partner, setPartner] = useState<AccountabilityPartner | null>(null);
 
   // Time picker state
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -51,8 +66,11 @@ export default function SettingsScreen() {
 
   const loadStats = useCallback(async () => {
     try {
-      const allFocusAreas = await focusAreaQueries.getAll();
-      const allSessions = await sessionQueries.getAll();
+      const [allFocusAreas, allSessions, activePartner] = await Promise.all([
+        focusAreaQueries.getAll(),
+        sessionQueries.getAll(),
+        accountabilityPartnerQueries.getActive(),
+      ]);
       const totalMinutes = allSessions
         .filter((s) => s.durationMinutes)
         .reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
@@ -62,6 +80,7 @@ export default function SettingsScreen() {
         sessions: allSessions.filter((s) => s.endTime).length,
         totalMinutes,
       });
+      setPartner(activePartner || null);
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -84,22 +103,80 @@ export default function SettingsScreen() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const focusAreas = await focusAreaQueries.getAll();
-      const sessions = await sessionQueries.getAll();
+      // Fetch all data from all tables
+      const [
+        focusAreas,
+        sessions,
+        lifeGoals,
+        quarterlyGoals,
+        monthlyOutcomes,
+        weeklyIntentions,
+        dailyLogs,
+        disciplines,
+        partners,
+      ] = await Promise.all([
+        focusAreaQueries.getAll(),
+        sessionQueries.getAll(),
+        lifeGoalQueries.getAll(),
+        quarterlyGoalQueries.getAll(),
+        monthlyOutcomeQueries.getAll(),
+        weeklyIntentionQueries.getAll(),
+        dailyLogQueries.getAll(),
+        disciplineQueries.getAll(),
+        accountabilityPartnerQueries.getAll(),
+      ]);
 
       const exportData = {
         exportedAt: new Date().toISOString(),
-        version: '1.0.0',
+        version: '2.0.0',
         focusAreas: focusAreas.map((fa) => ({
           ...fa,
-          startedAt: fa.startedAt.toISOString(),
-          createdAt: fa.createdAt.toISOString(),
-          completedAt: fa.completedAt?.toISOString(),
+          startedAt: fa.startedAt instanceof Date ? fa.startedAt.toISOString() : fa.startedAt,
+          createdAt: fa.createdAt instanceof Date ? fa.createdAt.toISOString() : fa.createdAt,
+          completedAt: fa.completedAt instanceof Date ? fa.completedAt.toISOString() : fa.completedAt,
         })),
         sessions: sessions.map((s) => ({
           ...s,
-          startTime: s.startTime.toISOString(),
-          endTime: s.endTime?.toISOString(),
+          startTime: s.startTime instanceof Date ? s.startTime.toISOString() : s.startTime,
+          endTime: s.endTime instanceof Date ? s.endTime.toISOString() : s.endTime,
+        })),
+        lifeGoals: lifeGoals.map((g) => ({
+          ...g,
+          createdAt: g.createdAt instanceof Date ? g.createdAt.toISOString() : g.createdAt,
+          updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : g.updatedAt,
+          achievedAt: g.achievedAt instanceof Date ? g.achievedAt.toISOString() : g.achievedAt,
+        })),
+        quarterlyGoals: quarterlyGoals.map((g) => ({
+          ...g,
+          createdAt: g.createdAt instanceof Date ? g.createdAt.toISOString() : g.createdAt,
+          updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : g.updatedAt,
+        })),
+        monthlyOutcomes: monthlyOutcomes.map((o) => ({
+          ...o,
+          createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : o.createdAt,
+          updatedAt: o.updatedAt instanceof Date ? o.updatedAt.toISOString() : o.updatedAt,
+        })),
+        weeklyIntentions: weeklyIntentions.map((i) => ({
+          ...i,
+          createdAt: i.createdAt instanceof Date ? i.createdAt.toISOString() : i.createdAt,
+          updatedAt: i.updatedAt instanceof Date ? i.updatedAt.toISOString() : i.updatedAt,
+        })),
+        dailyLogs: dailyLogs.map((l) => ({
+          ...l,
+          date: l.date,
+          createdAt: l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt,
+          updatedAt: l.updatedAt instanceof Date ? l.updatedAt.toISOString() : l.updatedAt,
+        })),
+        disciplines: disciplines.map((d) => ({
+          ...d,
+          createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+          updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
+          archivedAt: d.archivedAt instanceof Date ? d.archivedAt.toISOString() : d.archivedAt,
+        })),
+        accountabilityPartners: partners.map((p) => ({
+          ...p,
+          createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+          updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
         })),
       };
 
@@ -145,6 +222,75 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const handleImport = async () => {
+    if (!importText.trim()) {
+      Alert.alert('Error', 'Please paste your export data first');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const data = JSON.parse(importText);
+
+      if (!data.version || !data.exportedAt) {
+        Alert.alert('Error', 'Invalid export file format');
+        return;
+      }
+
+      let imported = { focusAreas: 0, sessions: 0, lifeGoals: 0, quarterlyGoals: 0 };
+
+      // Import life goals
+      if (data.lifeGoals && Array.isArray(data.lifeGoals)) {
+        for (const goal of data.lifeGoals) {
+          try {
+            await lifeGoalQueries.create({
+              title: goal.title,
+              description: goal.description,
+              category: goal.category,
+              timeWindow: goal.timeWindow,
+              status: goal.status || 'ACTIVE',
+              isStretchGoal: goal.isStretchGoal || false,
+              sortOrder: goal.sortOrder || 0,
+            });
+            imported.lifeGoals++;
+          } catch (e) {
+            console.log('Skipping duplicate goal:', goal.title);
+          }
+        }
+      }
+
+      // Import quarterly goals
+      if (data.quarterlyGoals && Array.isArray(data.quarterlyGoals)) {
+        for (const goal of data.quarterlyGoals) {
+          try {
+            await quarterlyGoalQueries.create({
+              quarter: goal.quarter,
+              title: goal.title,
+              description: goal.description,
+              status: goal.status || 'NOT_STARTED',
+            });
+            imported.quarterlyGoals++;
+          } catch (e) {
+            console.log('Skipping quarterly goal:', goal.title);
+          }
+        }
+      }
+
+      setShowImportModal(false);
+      setImportText('');
+      Alert.alert(
+        'Import Complete',
+        `Imported:\n- ${imported.lifeGoals} life goals\n- ${imported.quarterlyGoals} quarterly goals`
+      );
+      loadStats();
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert('Import Error', 'Failed to parse import data. Make sure it\'s valid JSON.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Time picker handlers
@@ -286,7 +432,7 @@ export default function SettingsScreen() {
         <Card style={styles.card} mode="elevated">
           <List.Item
             title="Export Data"
-            description="Export focus areas and sessions as JSON"
+            description="Export all app data as JSON"
             left={() => (
               <Ionicons
                 name="cloud-download-outline"
@@ -304,6 +450,23 @@ export default function SettingsScreen() {
             }
             onPress={handleExport}
             disabled={isExporting}
+          />
+          <Divider style={styles.divider} />
+          <List.Item
+            title="Import Data"
+            description="Restore from a previous export"
+            left={() => (
+              <Ionicons
+                name="cloud-upload-outline"
+                size={24}
+                color={theme.colors.onSurface}
+                style={styles.listIcon}
+              />
+            )}
+            right={() => (
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.onSurfaceVariant} />
+            )}
+            onPress={() => setShowImportModal(true)}
           />
           <Divider style={styles.divider} />
           <List.Item
@@ -477,6 +640,29 @@ export default function SettingsScreen() {
           />
         </Card>
 
+        {/* Accountability Section */}
+        <Text variant="labelLarge" style={[styles.sectionHeader, { color: theme.colors.primary }]}>
+          Accountability
+        </Text>
+        <Card style={styles.card} mode="elevated">
+          <List.Item
+            title="Accountability Partner"
+            description={partner ? `${partner.name} • ${partner.checkInDay}s` : 'Set up a partner to stay on track'}
+            left={() => (
+              <Ionicons
+                name="people-outline"
+                size={24}
+                color={theme.colors.onSurface}
+                style={styles.listIcon}
+              />
+            )}
+            right={() => (
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.onSurfaceVariant} />
+            )}
+            onPress={() => router.push('/accountability/setup')}
+          />
+        </Card>
+
         {/* Appearance Section */}
         <Text variant="labelLarge" style={[styles.sectionHeader, { color: theme.colors.primary }]}>
           Appearance
@@ -571,6 +757,54 @@ export default function SettingsScreen() {
           onChange={handleTimeChange}
         />
       )}
+
+      {/* Import Data Modal */}
+      <Portal>
+        <Modal
+          visible={showImportModal}
+          onDismiss={() => {
+            setShowImportModal(false);
+            setImportText('');
+          }}
+          contentContainerStyle={[styles.importModal, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text variant="titleMedium" style={{ marginBottom: 8 }}>
+            Import Data
+          </Text>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>
+            Paste your exported JSON data below
+          </Text>
+          <TextInput
+            style={[
+              styles.importInput,
+              {
+                borderColor: theme.colors.outline,
+                color: theme.colors.onSurface,
+                backgroundColor: theme.colors.surfaceVariant,
+              },
+            ]}
+            multiline
+            numberOfLines={10}
+            placeholder="Paste JSON here..."
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            value={importText}
+            onChangeText={setImportText}
+          />
+          <View style={styles.modalActions}>
+            <Button
+              onPress={() => {
+                setShowImportModal(false);
+                setImportText('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={handleImport} loading={isImporting} disabled={isImporting}>
+              Import
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </SafeAreaView>
   );
 }
@@ -617,5 +851,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 8,
     marginTop: 16,
+  },
+  importModal: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    maxHeight: '80%',
+  },
+  importInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 200,
+    textAlignVertical: 'top',
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

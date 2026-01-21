@@ -12,3 +12,10 @@ export {
   NOTIFICATION_IDS,
   NOTIFICATION_TYPES,
 } from './notificationService';
+export {
+  disciplineService,
+  type DisciplineStats,
+  type TodayDiscipline,
+} from './disciplineService';
+export { lifeGoalService, type LifeGoalStats } from './lifeGoalService';
+export { accountabilityService, type AccountabilityState } from './accountabilityService';
