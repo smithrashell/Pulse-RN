@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.0] - 2026-01-21
+
+### Summary
+Complete implementation of life planning hierarchy: Life Vision (100 goals), Quarterly Goals (3-6-9 method), Disciplines, Accountability Partner, and Flinch Test prompts.
+
 ### Added
 - **Goal Visibility (Today Screen)**: Quarterly goals and disciplines now visible on Today screen
   - **QuarterlyFocusCard**: Shows disciplines, 6 quarterly goals with status icons, and week X of 13 progress
